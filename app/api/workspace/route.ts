@@ -87,7 +87,7 @@ if(search){
   const succeeded=result.sources.some(s=>s.status==='searched'&&s.inspected!==undefined);
   if(!continuing)w.searchId=crypto.randomUUID();
   const keepLoaded=continuing||a.action==='chat'||a.action==='confirm';
-  if(succeeded||!continuing){w.listings=keepLoaded?mergeSearch(w.listings,result.listings,w.filters):result.listings;w.batch=continuing?(w.batch??1)+1:1;w.searchedAt=result.checkedAt;}
+  if(succeeded||!continuing){w.listings=mergeSearch(keepLoaded?w.listings:[],result.listings,w.filters);w.batch=continuing?(w.batch??1)+1:1;w.searchedAt=result.checkedAt;}
   w.sources=continuing?mergeSources(w.sources,result.sources):result.sources;w.nextCursor=result.nextCursor;
   const message=!succeeded?'Some inventory sources could not be checked. Your collected cars remain available. Open Sources for details.':`Found ${w.listings.length} matching cars across the inventory checked so far. ${healthyCursor(w.nextCursor,w.sources)?'More inventory pages are available.':'All currently accessible pages for this search have been checked.'} ${w.listings.length<5?'Fewer than five exact matches have been found so far; your requirements have not been relaxed. ':''}Your requested requirements are shown beside the results. Seller prices and equipment still need confirmation.`;
   if(continuing&&w.messages.at(-1)?.role==='assistant')w.messages[w.messages.length-1]={role:'assistant',text:message,ids:w.listings.slice(0,12).map(r=>r.id),at:Date.now()};

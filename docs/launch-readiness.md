@@ -27,3 +27,12 @@ Production environment revision 1 was inspected September 21: only CONNECTION_EN
 - Identical inventory queries reuse recent server results for up to five minutes (30 seconds when a provider reported an error). Credential and full-filter isolation, expiry and cleanup are covered by a SQLite integration test. Live quota savings still need measurement.
 
 Passing local tests does not establish all of the launch checks above. Record live evidence for each before declaring launch ready.
+
+## September 21 follow-up evidence
+
+- GitHub copy: https://github.com/reedjvanness-star/Autoscout. Source files are mirrored through explicit updates; automatic deployment or ongoing automatic synchronization has not been configured. The local `github` remote points there while Sites remains `origin`.
+- Live asking-price correction: VIN 5TFAZ5CN6HX041878 was incorrectly displayed at $1,998, the dealer's optional accessory charge. The seller page showed $26,999 plus a $225 document fee ($27,224). The correction was published, and a refreshed live $10,000 Tacoma search no longer showed it among the cheapest results. This is evidence for that listing, not proof that all upstream prices are accurate.
+- Price descriptions are checked for the exact reported amount labeled as savings, deposits, monthly payments, fees or accessories. Missing or ambiguous source evidence remains a limitation. Marketplace imports and cached/collected search results must run price review before match filtering and counts.
+- J.D. Power offers partner integration; an inquiry is prepared outside this repository but is not sent or approved. No access or free production pilot is established. Official contact: https://www.jdpowervalues.com/customer-service-representative.
+- Edmunds' published FAQ says its open API is retired and new applicants are not accepted: https://developer.edmunds.com/faq.html. Old API documentation is not evidence of available access.
+- Public-user inventory credentials, provider permission/allowance, notification scheduler/email activation, and fresh-account end-to-end verification remain incomplete. No paid services were authorized or purchased.

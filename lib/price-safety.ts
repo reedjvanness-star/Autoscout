@@ -1,7 +1,7 @@
 import type {Listing} from './domain';
 export const DISCOUNT_PRICE_WARNING='This amount may be savings, a payment or an accessory charge instead of the vehicle price. The full asking price must be verified before this amount can be displayed or used for your budget.';
 export function labeledNonPurchaseAmount(text:string,price:number){
- const amount='\\$\\s*(\\d[\\d,]*(?:\\.\\d{1,2})?)(?![\\d.])';
+ const amount='\\$\\s*(\\d[\\d,]*(?:\\.\\d{1,2})?)(?!\\d|[.,]\\d)';
  const label='(?:savings|(?:dealer\\s+)?discount|rebate|optional accessories|accessory (?:charge|package)|down payment|deposit|monthly payment|doc(?:umentation)? fee)';
  const patterns=[new RegExp('\\b'+label+'\\s*[:=–—-]?\\s*'+amount,'gi'),new RegExp(amount+'\\s*(?:in\\s+)?'+label+'\\b','gi'),new RegExp(amount+'\\s*(?:/\\s*mo(?:nth)?\\b|per month\\b|a month\\b|down\\b)','gi')];
  return patterns.some(pattern=>[...text.matchAll(pattern)].some(m=>Number(m[1].replaceAll(',',''))===price));

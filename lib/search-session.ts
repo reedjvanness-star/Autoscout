@@ -1,4 +1,5 @@
 import {rank,type Listing,type Source,type SearchCursor,type Filters} from './domain';
+import {applyPriceReview} from './price-review';
 
 export const AUTO_SEARCH_PAGES=20;
 export const AUTO_SEARCH_MATCHES=2500;
@@ -13,7 +14,9 @@ export function mergeSearch(previous:Listing[],incoming:Listing[],filters:Filter
  // Updated offers replace earlier copies; different source offers remain available.
  const rows=new Map(previous.map(r=>[r.id,r]));
  incoming.forEach(r=>rows.set(r.id,r));
- const combined=[...rows.values()];
+ // Marketplace imports and previously collected offers need the same price
+ // validation as live inventory before filtering or announcing match counts.
+ const combined=[...rows.values()].map(row=>applyPriceReview(row));
  return rank(combined,combined,filters,combined.length);
 }
 export function mergeSources(previous:Source[],incoming:Source[]):Source[]{
