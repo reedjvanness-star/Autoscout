@@ -2,7 +2,7 @@ import {safeUrl,priceWarning,type Listing,type Filters,type Source} from './doma
 import {craigslistHost,marketplaceRegionBatch} from './marketplace-regions';
 import {knownFeatures} from './vehicle-requirements';
 
-export const marketplaceNames={'cargurus.com':'CarGurus','cars.com':'Cars.com','truecar.com':'TrueCar','autotrader.com':'AutoTrader','craigslist.org':'Craigslist','facebook.com':'Facebook Marketplace'} as const;
+export const marketplaceNames={'cargurus.com':'CarGurus','cars.com':'Cars.com','truecar.com':'TrueCar','autotrader.com':'AutoTrader','craigslist.org':'Craigslist','facebook.com':'Facebook Marketplace','carmax.com':'CarMax','carvana.com':'Carvana'} as const;
 export const FACEBOOK_ACTOR='qFR6mjgdwPouKLDvE';
 export function facebookInput(f:Filters){return {keywordSearches:marketplaceRegionBatch('facebook',f.state).regions.map(locationSlug=>({query:[f.make,f.model,f.trim,f.exteriorColor,f.bodyType,...f.requiredTerms].filter(Boolean).join(' ')||'used cars',locationSlug})),fetchDetails:true,maxListings:10,availability:'available',deduplicateListings:true,...(f.maxPrice!==null?{maxPrice:Math.max(0,f.maxPrice-f.shippingAllowance)}:{})};}
 export function normalizeFacebook(x:any):Listing|null{
@@ -26,6 +26,20 @@ export function marketplaceInput(f:Filters,batch=0){
   ...(f.maxMiles!==null?{mileageMax:f.maxMiles}:{}),...(f.transmission?{transmission:f.transmission}:{}),
   ...(f.fuel?{fuelType:f.fuel==='gasoline'?'gas':f.fuel}:{}),...(f.seller!=='any'?{sellerType:f.seller==='private'?'owner':'dealer'}:{}),...(f.cleanTitle?{titleStatus:'clean'}:{})};
 }
+// Independent retailer lookup through the existing free-credit marketplace account.
+// Keep the result cap below the $0.10 run limit; never substitute an auction bid.
+export function retailerMarketplaceInput(f:Filters){
+ return {...marketplaceInput(f),sources:['carmax','carvana','autotrader'],craigslistRegions:[],maxResults:30};
+}
+export function retailerMarketplaceSources(rows:Listing[],done:boolean,previous:Source[]):Source[]{
+ return ['CarMax','Carvana','AutoTrader'].map(name=>{
+  const count=rows.filter(row=>row.source===name).length,old=previous.find(s=>s.name===name);
+  if(count)return {name,status:'searched',count,inspected:count,detail:`${count} listings returned through Apify, independently of MarketCheck. Exact requirements are checked before display. Partial coverage.`};
+  if(old?.status==='searched'&&(old.count??0)>0)return old;
+  const detail=done?'Apify returned no usable listings for this source. Coverage is unverified.':'Independent marketplace lookup is running.';
+  return {name,status:done?'error':'ready',count:0,detail:detail+(old?.status==='error'?' '+old.detail.replace(/ Apify returned.*$/,''):'')};
+ });
+}
 export function normalizeMarketplace(x:any):Listing|null{
  if(!x||typeof x!=='object')return null;
  const url=safeUrl(x.url);if(!url)return null;
@@ -34,7 +48,9 @@ export function normalizeMarketplace(x:any):Listing|null{
  const path=new URL(url).pathname;
  if(host==='autotrader.com'&&!/^\/cars-for-sale\/(?:vehicle\/\d+\/?|vehicledetails\.xhtml)$/.test(path))return null;
  if(host==='autotrader.com'&&path.endsWith('vehicledetails.xhtml')&&!/^\d+$/.test(new URL(url).searchParams.get('listingId')??''))return null;
- if(host!=='autotrader.com'&&(host==='facebook.com'?!/^\/marketplace\/item\/\d+\/?$/.test(path):host==='craigslist.org'? !(/^\/view\/d\/[^/]+\/[A-Za-z0-9_-]+\/?$/.test(path)||/^\/(?:[a-z0-9-]+\/)?(?:cto|ctd)\/d\/[^/]+\/\d+\.html$/.test(path)):!(/\/details\/\d+/.test(path)||/\/vehicledetail\//.test(path)||/\/listing\//.test(path)||/\/vehicledetails\//.test(path))))return null;
+ if(host==='carmax.com'&&!/^\/car\/\d+\/?$/.test(path))return null;
+ if(host==='carvana.com'&&!/^\/vehicle\/\d+\/?$/.test(path))return null;
+ if(!['autotrader.com','carmax.com','carvana.com'].includes(host)&&(host==='facebook.com'?!/^\/marketplace\/item\/\d+\/?$/.test(path):host==='craigslist.org'? !(/^\/view\/d\/[^/]+\/[A-Za-z0-9_-]+\/?$/.test(path)||/^\/(?:[a-z0-9-]+\/)?(?:cto|ctd)\/d\/[^/]+\/\d+\.html$/.test(path)):!(/\/details\/\d+/.test(path)||/\/vehicledetail\//.test(path)||/\/listing\//.test(path)||/\/vehicledetails\//.test(path))))return null;
  const offer=Array.isArray(x.offers)?x.offers.length===1?x.offers[0]:null:x.offers;
  const price=number(offer?.price),year=number(x.vehicleModelDate);
  if(price===null||price<=0||offer?.priceCurrency!=='USD')return null;
@@ -69,5 +85,5 @@ export async function verifyFreeAccount(key:string,request:typeof fetch=fetch){
  return String(data.id);
 }
 export function marketplaceSources(rows:Listing[],terminal:boolean,state='',batch=0):Source[]{
- return Object.values(marketplaceNames).filter(name=>name!=='Facebook Marketplace'&&name!=='AutoTrader'&&(batch===0||name==='Craigslist')).map(name=>{const count=rows.filter(r=>r.source===name).length;const plan=marketplaceRegionBatch('automotive',state,batch);const region=name==='Craigslist'?`Targeted regions ${plan.start+1}–${plan.start+plan.regions.length} of ${plan.total}. Result and free-credit limits apply; this is partial coverage. `:'';return {name,status:count?'searched':terminal?'error':'ready',count,inspected:count,detail:region+(count?`${count} listings returned through Apify. Your exact filters are applied before display.`:terminal?'The provider returned no usable listings for this source. Coverage is not verified.':'Marketplace search is still running.')};});
+ return Object.values(marketplaceNames).filter(name=>!['Facebook Marketplace','AutoTrader','CarMax','Carvana'].includes(name)&&(batch===0||name==='Craigslist')).map(name=>{const count=rows.filter(r=>r.source===name).length;const plan=marketplaceRegionBatch('automotive',state,batch);const region=name==='Craigslist'?`Targeted regions ${plan.start+1}–${plan.start+plan.regions.length} of ${plan.total}. Result and free-credit limits apply; this is partial coverage. `:'';return {name,status:count?'searched':terminal?'error':'ready',count,inspected:count,detail:region+(count?`${count} listings returned through Apify. Your exact filters are applied before display.`:terminal?'The provider returned no usable listings for this source. Coverage is not verified.':'Marketplace search is still running.')};});
 }

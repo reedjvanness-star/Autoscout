@@ -1,6 +1,6 @@
 import {marketplaceRegions} from './marketplace-regions';
 import type {Source} from './domain';
-const marketplaceNames=['Cars.com','CarGurus','TrueCar','Facebook Marketplace','Craigslist'];
+const marketplaceNames=['Cars.com','CarGurus','TrueCar','Facebook Marketplace','Craigslist','CarMax','Carvana','AutoTrader'];
 export function sourceDisplay(source:Source,marketplacesConnected:boolean,state:string){
  const regional=source.name==='Facebook Marketplace';
  if(marketplacesConnected&&marketplaceNames.includes(source.name)&&source.status==='unavailable'){
