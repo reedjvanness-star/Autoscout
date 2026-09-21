@@ -26,13 +26,14 @@ export function marketplaceInput(f:Filters,batch=0){
   ...(f.maxMiles!==null?{mileageMax:f.maxMiles}:{}),...(f.transmission?{transmission:f.transmission}:{}),
   ...(f.fuel?{fuelType:f.fuel==='gasoline'?'gas':f.fuel}:{}),...(f.seller!=='any'?{sellerType:f.seller==='private'?'owner':'dealer'}:{}),...(f.cleanTitle?{titleStatus:'clean'}:{})};
 }
-// Independent retailer lookup through the existing free-credit marketplace account.
-// Keep the result cap below the $0.10 run limit; never substitute an auction bid.
+// Carvana's provider builds invalid URLs when free-text specifications become path slugs.
+// Discover by make/model, then apply every original requirement locally.
+// CarMax/AutoTrader are excluded after live access failures; never retry blocked sources automatically.
 export function retailerMarketplaceInput(f:Filters){
- return {...marketplaceInput(f),sources:['carmax','carvana','autotrader'],craigslistRegions:[],maxResults:30};
+ return {...marketplaceInput(f),sources:['carvana'],keywords:[],craigslistRegions:[],maxResultsPerUrl:40,maxResults:40};
 }
 export function retailerMarketplaceSources(rows:Listing[],done:boolean,previous:Source[]):Source[]{
- return ['CarMax','Carvana','AutoTrader'].map(name=>{
+ return ['Carvana'].map(name=>{
   const count=rows.filter(row=>row.source===name).length,old=previous.find(s=>s.name===name);
   if(count)return {name,status:'searched',count,inspected:count,detail:`${count} listings returned through Apify, independently of MarketCheck. Exact requirements are checked before display. Partial coverage.`};
   if(old?.status==='searched'&&(old.count??0)>0)return old;
@@ -68,7 +69,7 @@ export function normalizeMarketplace(x:any):Listing|null{
  return {id:'marketplace:'+url,vin,url,source:marketplaceNames[host as keyof typeof marketplaceNames],title,make,model,trim,year,price,miles,
  state:string(address.addressRegion).toUpperCase(),city:string(address.addressLocality),photo:safeUrl(Array.isArray(x.image)?x.image[0]:x.image?.url??x.image),
  exteriorColor:string(host==='craigslist.org'?x.additionalProperties?.exteriorColor||x.color:x.color),bodyType:string(x.bodyType),cabStyle:string(x.bodyType),fuel:string(x.fuelType)==='gas'?'gasoline':string(x.fuelType),transmission:string(x.vehicleTransmission),drive:string(x.driveWheelConfiguration).replace(/^https?:\/\/schema.org\//,''),
- evidenceText:[title,description,...(Array.isArray(x.features)?x.features.map((v:any)=>string(v?.name??v)):[])].join('\n'),features:knownFeatures([...(Array.isArray(x.features)?x.features:[]),...description.split(/[.;\n]/)]),seller:x.sellerType==='dealer'?'dealer':x.sellerType==='owner'||x.sellerType==='private'?'private':'unknown',
+ evidenceText:[title,description,...(Array.isArray(x.features)?x.features.map((v:any)=>string(v?.name??v)):[])].join('\n'),features:knownFeatures([...(Array.isArray(x.features)?x.features:[]),...description.split(/[.;\n]/)]),seller:(['carmax.com','carvana.com'].includes(host)||x.sellerType==='dealer'||offer?.seller?.['@type']==='AutoDealer')?'dealer':x.sellerType==='owner'||x.sellerType==='private'?'private':'unknown',
  titleStatus:['clean','rebuilt','salvage'].includes(x.titleStatus)?x.titleStatus:'unknown',condition:'used',history:'unknown',fees:null,priceWarning:warning,
  checkedAt:new Date().toISOString(),sourceUpdatedAt:string(x.datePosted)||null,concerns:['Marketplace listing retrieved through Apify; confirm price, fitted equipment and availability with the seller.'],comparables:[],median:null,reason:'',total:price};
 }
