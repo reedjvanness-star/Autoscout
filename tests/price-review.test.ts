@@ -50,3 +50,16 @@ assert.equal(rank([applyPriceReview(accessoryCar,accessoryReview)],[],{...initia
 assert(applyPriceReview(accessoryCar).priceWarning,'unverified cars from the affected dealer stay out of budgets');
 assert(unsafe.priceWarning,'unchecked discount-prone feed amounts require source verification');
 assert.equal(rank([unsafe],[],{...initialFilters,maxPrice:35000}).length,0,'unknown full price cannot qualify under budget');
+
+// A second real dealer used the accessory subtotal as the reported asking price.
+const camry={...car,vin:'4T1BK1FK1CU510755',url:'https://www.vandergriffhonda.com/used/Toyota/test.htm',price:1028,year:2012,miles:163695,priceReview:undefined};
+const camryPage='<p>VIN 4T1BK1FK1CU510755 Vandergriff Price $13,495 Doc Fee $225 Price After Fees $13,720 Optional Accessories $1,028</p>';
+const camryReview=inspectListingPage(camry,camryPage);
+assert.equal(camryReview.sourcePrice,13720);assert.equal(camryReview.feesIncluded,true);
+assert(applyPriceReview(camry).priceWarning);
+assert.equal(rank([applyPriceReview(camry)],[],{...initialFilters,maxPrice:10000}).length,0);
+const checkedCamry=applyPriceReview(camry,camryReview);
+assert.equal(checkedCamry.total,13720);
+assert.equal(rank([checkedCamry],[],{...initialFilters,maxPrice:10000}).length,0);
+assert.equal(rank([checkedCamry],[],{...initialFilters,maxPrice:15000}).length,1);
+assert(applyPriceReview(camry,camryReview,Date.parse(camryReview.checkedAt)+86400000).priceWarning);

@@ -49,3 +49,11 @@ Passing local tests does not establish all of the launch checks above. Record li
 - Regional automotive startup regression identified: the live actor accepts Craigslist region slugs, while its public schema page gives hostname examples. Full domains rejected the entire Cars.com/CarGurus/TrueCar/Craigslist request. Changed requests to slugs and added a regression test; no source is considered verified merely because input validation passes.
 
 - Corrected regional provider trial returned 12 Craigslist cars across multiple regions outside Denver. Craigslist is now placed in subsequent batches so its fast regional results cannot consume the entire first Cars.com/CarGurus/TrueCar result cap.
+
+## Launch preparation — September 21
+
+- Corrected Camry VIN 4T1BK1FK1CU510755: $1,028 was optional accessories. Seller shows $13,495 plus $225 document fee, $13,720 before tax/title/registration. Fresh audit expires after 24 hours; related dealer pricing is treated cautiously without verified evidence.
+- Added public Help, Privacy and Terms pages and first-visit early-access guidance. Private support email remains unconfigured, pending owner choice.
+- Saved-search controls no longer promise notifications when the scheduler is inactive. Scheduler/email remain unavailable for this release.
+- Price regression, account-isolation, alerts and shortlist tests pass, along with TypeScript. Isolation tests cover fresh local workspaces, encrypted credentials and cross-user decryption rejection; production fresh-account end-to-end testing is still needed.
+- Shared inventory access and provider production-use permission remain unresolved. No paid upgrades purchased. Scout API testing awaits the owner's existing-key versus new-key choice; no owner key was exposed to other accounts.
