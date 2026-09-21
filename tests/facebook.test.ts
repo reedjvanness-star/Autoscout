@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {normalizeFacebook,facebookInput} from '../lib/apify';
+import {initialFilters,matches} from '../lib/domain';
+const sample={url:'https://www.facebook.com/marketplace/item/1888356472137471/',title:'2016 Toyota Camry · XLE Sedan 4D',country_code:'US',condition:'USED',is_live:true,is_sold:false,is_pending:false,price:{amount:'7299.0',currency:'USD'},vehicle_make_display_name:'Toyota',vehicle_model_display_name:'Camry',vehicle_trim_display_name:'XLE Sedan 4D',vehicle_odometer_data:{unit:'MILES',value:226000},vehicle_exterior_color:'black',vehicle_fuel_type:'GASOLINE',vehicle_transmission_type:'AUTOMATIC',seller:{type:'private'},location:{city:'Denver',state:'CO'}};
+const row=normalizeFacebook(sample)!;
+assert.equal(row.source,'Facebook Marketplace');assert.equal(row.price,7299);assert.equal(row.miles,226000);assert.equal(row.year,2016);assert.equal(row.seller,'private');
+assert(!matches(row,{...initialFilters,exteriorColor:'green'}));assert(!matches(row,{...initialFilters,maxMiles:100000}));
+assert.equal(normalizeFacebook({...sample,is_sold:true}),null);assert.equal(normalizeFacebook({...sample,is_pending:true}),null);
+assert.equal(normalizeFacebook({...sample,url:'https://facebook.com.evil.test/marketplace/item/1'}),null);
+assert.equal(normalizeFacebook({...sample,vehicle_model_display_name:null}),null);
+assert.equal(normalizeFacebook({...sample,price:{amount:7299,currency:'CAD'}}),null);
+assert.equal(normalizeFacebook({...sample,vehicle_odometer_data:{unit:'unknown',value:226000}})!.miles,null);
+assert(normalizeFacebook({...sample,payment_time_period:'MONTHLY'})!.priceWarning);
+assert.equal(facebookInput({...initialFilters,make:'Toyota',model:'Camry'}).keywordSearches[0].query,'Toyota Camry');
+console.log('PASS: Facebook actual schema, prices, strict filters, availability and URL validation');

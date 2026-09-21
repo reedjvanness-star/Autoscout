@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {basic} from '../lib/basic-parser';
+import {initialFilters} from '../lib/domain';
+const b=basic('BMW M340i under $35,000 with fewer than 40,000 miles in Colorado',initialFilters);
+assert.equal(b.filters.make,'BMW');assert.equal(b.filters.model,'3 Series');assert.equal(b.filters.trim,'M340i');assert.equal(b.filters.maxPrice,35000);assert.equal(b.filters.maxMiles,40000);assert.equal(b.filters.state,'CO');assert.equal(b.question,'');
+const s=basic('Subaru Crosstrek under $25.5k with fewer than 60k miles in California',initialFilters);
+assert.equal(s.filters.make,'Subaru');assert.equal(s.filters.model,'Crosstrek');assert.equal(s.filters.maxPrice,25500);assert.equal(s.filters.maxMiles,60000);assert.equal(s.filters.state,'CA');
+const follow=basic('lower mileage',b.filters);assert.equal(follow.filters.maxMiles,30000);assert.equal(follow.filters.maxPrice,35000);assert.equal(follow.filters.trim,'M340i');
+assert.equal(basic('only AWD',b.filters).filters.awd,true);assert.equal(basic('top three',b.filters).filters.limit,3);
+assert.equal(basic('find a red one',b.filters).filters.exteriorColor,'red');assert.equal(basic('find a red one',b.filters).question,'');assert.equal(basic('show these again',b.filters).filters.maxPrice,35000);
+assert.equal(basic('Ford F150 under $30,000',initialFilters).filters.model,'F-150');
+console.log('PASS: make/model parsing, decimal budgets, location, follow-ups, and unsupported requirements');

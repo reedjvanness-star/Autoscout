@@ -1,0 +1,72 @@
+import {safeUrl,priceWarning,type Listing,type Filters,type Source} from './domain';
+import {knownFeatures} from './vehicle-requirements';
+
+export const marketplaceNames={'cargurus.com':'CarGurus','cars.com':'Cars.com','truecar.com':'TrueCar','autotrader.com':'AutoTrader','craigslist.org':'Craigslist','facebook.com':'Facebook Marketplace'} as const;
+export const FACEBOOK_ACTOR='qFR6mjgdwPouKLDvE';
+export function facebookInput(f:Filters){return {keywordSearches:[{query:[f.make,f.model,f.trim,f.exteriorColor,f.bodyType,...f.requiredTerms].filter(Boolean).join(' ')||'used cars',locationSlug:'denver'}],fetchDetails:true,maxListings:20,availability:'available',deduplicateListings:true,...(f.maxPrice!==null?{maxPrice:Math.max(0,f.maxPrice-f.shippingAllowance)}:{})};}
+export function normalizeFacebook(x:any):Listing|null{
+ if(!x||x.country_code!=='US'||x.condition!=='USED'||x.is_live!==true||x.is_sold!==false||x.is_pending!==false)return null;
+ const url=safeUrl(x.url);if(!url||new URL(url).hostname.replace(/^www\./,'')!=='facebook.com')return null;
+ const title=string(x.title),year=title.match(/^(19\d{2}|20\d{2})\b/)?.[1];
+ const row=normalizeMarketplace({url:x.url,name:title,description:x.description,brand:x.vehicle_make_display_name,model:x.vehicle_model_display_name,vehicleModelDate:year,vehicleConfiguration:x.vehicle_trim_display_name,vehicleIdentificationNumber:x.vehicle_identification_number,offers:{price:x.price?.amount,priceCurrency:x.price?.currency},mileageFromOdometer:{value:x.vehicle_odometer_data?.value,unitCode:x.vehicle_odometer_data?.unit==='MILES'?'SMI':x.vehicle_odometer_data?.unit==='KILOMETERS'?'KMT':''},color:x.vehicle_exterior_color,image:x.images,itemLocation:{address:{addressLocality:x.location?.city,addressRegion:x.location?.state}},fuelType:string(x.vehicle_fuel_type).toLowerCase()==='petrol'?'gasoline':string(x.vehicle_fuel_type).toLowerCase(),vehicleTransmission:string(x.vehicle_transmission_type).toLowerCase(),sellerType:x.seller?.type==='dealership'?'dealer':x.seller?.type==='private'?'private':'unknown',titleStatus:string(x.vehicle_title_status).toLowerCase(),datePosted:x.creation_time?.iso,features:x.vehicle_features});
+ if(row&&x.payment_time_period)row.priceWarning='This listing reports a recurring payment. Full purchase price is unconfirmed.';
+ return row;
+}
+export const MARKETPLACE_RUN_CAP=0.10;
+export const ACTOR='QvdSsCWLcIKzKSeu3';
+const string=(v:unknown)=>typeof v==='string'?v:'';
+const number=(v:unknown)=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>=0?Number(v):null;
+export function marketplaceInput(f:Filters){
+ const craigslist=!f.state||f.state==='CO';
+ return {sources:['cargurus','cars-com','truecar',...(craigslist?['craigslist']:[])],...(craigslist?{craigslistRegions:['denver']}:{}),make:f.make,model:f.model,
+  keywords:[f.trim,f.exteriorColor,f.bodyType,...f.features,...f.requiredTerms].filter(Boolean).length?[[f.make,f.model,f.trim,f.exteriorColor,f.bodyType,...f.features,...f.requiredTerms].filter(Boolean).join(' ')]:[],
+  condition:'used',detail:'full',priceCurrency:'USD',mileageUnit:'mi',maxResultsPerUrl:10,maxResults:40,
+  ...(f.minYear!==null?{yearFrom:f.minYear}:{}),...(f.maxPrice!==null?{priceMax:Math.max(0,f.maxPrice-f.shippingAllowance)}:{}),
+  ...(f.maxMiles!==null?{mileageMax:f.maxMiles}:{}),...(f.transmission?{transmission:f.transmission}:{}),
+  ...(f.fuel?{fuelType:f.fuel==='gasoline'?'gas':f.fuel}:{}),...(f.seller!=='any'?{sellerType:f.seller==='private'?'owner':'dealer'}:{}),...(f.cleanTitle?{titleStatus:'clean'}:{})};
+}
+export function normalizeMarketplace(x:any):Listing|null{
+ if(!x||typeof x!=='object')return null;
+ const url=safeUrl(x.url);if(!url)return null;
+ const hostname=new URL(url).hostname.replace(/^www\./,'');
+ const host=hostname==='denver.craigslist.org'?'craigslist.org':hostname;if(!(host in marketplaceNames))return null;
+ const path=new URL(url).pathname;
+ if(host==='autotrader.com'&&!/^\/cars-for-sale\/(?:vehicle\/\d+\/?|vehicledetails\.xhtml)$/.test(path))return null;
+ if(host==='autotrader.com'&&path.endsWith('vehicledetails.xhtml')&&!/^\d+$/.test(new URL(url).searchParams.get('listingId')??''))return null;
+ if(host!=='autotrader.com'&&(host==='facebook.com'?!/^\/marketplace\/item\/\d+\/?$/.test(path):host==='craigslist.org'? !(/^\/view\/d\/[^/]+\/[A-Za-z0-9_-]+\/?$/.test(path)||/^\/(?:cto|ctd)\/d\/[^/]+\/\d+\.html$/.test(path)):!(/\/details\/\d+/.test(path)||/\/vehicledetail\//.test(path)||/\/listing\//.test(path)||/\/vehicledetails\//.test(path))))return null;
+ const offer=Array.isArray(x.offers)?x.offers.length===1?x.offers[0]:null:x.offers;
+ const price=number(offer?.price),year=number(x.vehicleModelDate);
+ if(price===null||price<=0||offer?.priceCurrency!=='USD')return null;
+ const condition=string(x.itemCondition||offer.itemCondition).toLowerCase();
+ if(/newcondition|^new$/.test(condition))return null;
+ const mileage=number(x.mileageFromOdometer?.value),unit=x.mileageFromOdometer?.unitCode;
+ const miles=mileage===null?null:unit==='SMI'?mileage:unit==='KMT'?Math.ceil(mileage/1.609344):null;
+ const make=string(x.brand?.name||x.brand),model=string(x.model),trim=string(x.vehicleConfiguration);
+ if(!make||!model)return null;
+ const title=string(x.name)||[year,make,model,trim].filter(Boolean).join(' '),description=string(x.description);
+ const payment=/\b(?:per month|monthly payment|down payment|amount to finance)\b|\/mo\b/i.test(title);
+ const vin=/^[A-HJ-NPR-Z0-9]{17}$/i.test(string(x.vehicleIdentificationNumber))?x.vehicleIdentificationNumber.toUpperCase():null;
+ const address=x.itemLocation?.address??{};
+ const warning=payment?'This amount may be a payment or deposit. Full purchase price is unconfirmed.':priceWarning(price,year);
+ return {id:'marketplace:'+url,vin,url,source:marketplaceNames[host as keyof typeof marketplaceNames],title,make,model,trim,year,price,miles,
+ state:string(address.addressRegion).toUpperCase(),city:string(address.addressLocality),photo:safeUrl(Array.isArray(x.image)?x.image[0]:x.image?.url??x.image),
+ exteriorColor:string(host==='craigslist.org'?x.additionalProperties?.exteriorColor||x.color:x.color),bodyType:string(x.bodyType),cabStyle:string(x.bodyType),fuel:string(x.fuelType)==='gas'?'gasoline':string(x.fuelType),transmission:string(x.vehicleTransmission),drive:string(x.driveWheelConfiguration).replace(/^https?:\/\/schema.org\//,''),
+ evidenceText:[title,description,...(Array.isArray(x.features)?x.features.map((v:any)=>string(v?.name??v)):[])].join('\n'),features:knownFeatures([...(Array.isArray(x.features)?x.features:[]),...description.split(/[.;\n]/)]),seller:x.sellerType==='dealer'?'dealer':x.sellerType==='owner'||x.sellerType==='private'?'private':'unknown',
+ titleStatus:['clean','rebuilt','salvage'].includes(x.titleStatus)?x.titleStatus:'unknown',condition:'used',history:'unknown',fees:null,priceWarning:warning,
+ checkedAt:new Date().toISOString(),sourceUpdatedAt:string(x.datePosted)||null,concerns:['Marketplace listing retrieved through Apify; confirm price, fitted equipment and availability with the seller.'],comparables:[],median:null,reason:'',total:price};
+}
+export class MarketplaceError extends Error {}
+export async function apifyRequest(key:string,path:string,init:RequestInit={},request:typeof fetch=fetch){
+ let res:Response;
+ try{res=await request('https://api.apify.com/v2/'+path,{...init,headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},redirect:'manual',signal:AbortSignal.timeout(18000)});}catch(e){throw new MarketplaceError(`The server could not reach Apify (${e instanceof Error&&['TypeError','TimeoutError','AbortError'].includes(e.name)?e.name:'network error'}). No connection was saved.`);}
+ if(!res.ok)throw new MarketplaceError(`Marketplace provider request failed (${res.status}). Existing results are unchanged.`);
+ return res.json() as Promise<any>;
+}
+export async function verifyFreeAccount(key:string,request:typeof fetch=fetch){
+ const {data}=await apifyRequest(key,'users/me',{},request);
+ if(!data?.id||data.isPaying!==false||data.plan?.monthlyBasePriceUsd!==0)throw new MarketplaceError(`This connection requires an Apify Free account. No paid plan will be used. Verification: account ${data?.id?'present':'missing'}, paying flag ${typeof data?.isPaying==='boolean'?String(data.isPaying):'missing'}, base price ${typeof data?.plan?.monthlyBasePriceUsd==='number'?data.plan.monthlyBasePriceUsd:'missing'}.`);
+ return String(data.id);
+}
+export function marketplaceSources(rows:Listing[],terminal:boolean,state=''):Source[]{
+ return Object.values(marketplaceNames).filter(name=>name!=='Facebook Marketplace'&&name!=='AutoTrader'&&(name!=='Craigslist'||!state||state==='CO')).map(name=>{const count=rows.filter(r=>r.source===name).length;const region=name==='Craigslist'?'Denver-area coverage only. ':'';return {name,status:count?'searched':terminal?'error':'ready',count,inspected:count,detail:region+(count?`${count} listings returned through Apify. Your exact filters are applied before display.`:terminal?'The provider returned no usable listings for this source. Coverage is not verified.':'Marketplace search is still running.')};});
+}

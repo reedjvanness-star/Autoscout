@@ -1,0 +1,20 @@
+name: MotorScout saved-search checks
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions: {}
+jobs:
+  check-enabled-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check only explicitly enabled alerts
+        env:
+          MOTORSCOUT_URL: ${{ secrets.MOTORSCOUT_URL }}
+          SCHEDULER_SECRET: ${{ secrets.SCHEDULER_SECRET }}
+        run: |
+          test -n "$MOTORSCOUT_URL" && test -n "$SCHEDULER_SECRET"
+          curl --fail --silent --show-error --max-time 120 \
+            --request POST \
+            --header "Authorization: Bearer $SCHEDULER_SECRET" \
+            "$MOTORSCOUT_URL/api/jobs/alerts"

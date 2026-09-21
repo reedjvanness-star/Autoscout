@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import {normalizeRetailer,retailerInventoryUrl,retailers} from '../lib/retailers';
+import {firstCursor,initialFilters} from '../lib/domain';
+import {searchInventory} from '../lib/inventory';
+import {healthyCursor,mergeSources} from '../lib/search-session';
+
+const urls=['https://www.carmax.com/car/28890260','https://www.carvana.com/vehicle/4723104','https://www.autonationusa.com/cars/5J8YD9H43TL002090','https://www.driveway.com/shop/vehicle/87317785','https://www.echopark.com/car/JTJBARBZ8F2044487'];
+const raw=(url:string,i=0)=>({id:`retail-${i}`,vdp_url:url,price:30000+i,miles:40000,inventory_type:'used',build:{year:2022,make:'Toyota',model:'Camry',trim:'SE'},car_location:{state:'CO',city:'Denver'},dealer:{state:'OR',city:'Headquarters'},exterior_color:'Green'});
+urls.forEach((url,i)=>{const car=normalizeRetailer(raw(url,i))!;assert.equal(car.source,Object.values(retailers)[i].name);assert.equal(car.price,30000+i);assert.equal(car.state,'CO');assert.equal(car.seller,'dealer');});
+for(const patch of [{vdp_url:'https://carmax.com.evil.test/car/123'},{vdp_url:'https://www.carmax.com/cars'},{inventory_type:'new'},{inventory_type:undefined},{price:0}])assert.equal(normalizeRetailer({...raw(urls[0]),...patch}),null);
+assert.equal(normalizeRetailer({...raw(urls[0]),car_location:undefined})!.state,'','never use corporate headquarters as car location');
+const f={...initialFilters,make:'Toyota',model:'Camry',exteriorColor:'green',maxPrice:35000};
+const url=retailerInventoryUrl(f,10);assert.equal(url.searchParams.get('source'),Object.keys(retailers).join(','));assert.equal(url.searchParams.get('rows'),'10');assert.equal(url.searchParams.get('start'),'10');assert.equal(url.searchParams.get('append_api_key'),'false');
+let calls=0;
+const request:typeof fetch=async(input,init)=>{const u=new URL(String(input));assert.equal(u.origin,'https://api.marketcheck.com');assert.equal(init?.redirect,'manual');if(!u.searchParams.get('source')?.includes('carmax.com'))return Response.json({listings:[],num_found:0});calls++;const offset=Number(u.searchParams.get('start'));return Response.json({listings:offset===0?urls.map(raw):[],num_found:6});};
+const first=await searchInventory(f,{marketcheck:'test'},firstCursor(),request);assert.equal(first.listings.length,5);assert.equal(first.nextCursor?.retailers,5);assert(first.sources.slice(6,11).every(s=>s.count===1));assert.equal(calls,1,'all five retailers share one request');
+const next=await searchInventory(f,{marketcheck:'test'},first.nextCursor!,request);assert.equal(next.nextCursor,null);assert.equal(calls,2);assert(mergeSources(first.sources,next.sources).slice(6,11).every(s=>s.count===1),'source counts survive later empty pages');
+const strict=await searchInventory({...f,exteriorColor:'blue'},{marketcheck:'test'},firstCursor(),request);assert.equal(strict.listings.length,0);assert(strict.sources.slice(6,11).every(s=>s.count===0));
+calls=0;await searchInventory({...f,seller:'private'},{marketcheck:'test'},firstCursor(),request);assert.equal(calls,0);
+const failed=await searchInventory(f,{marketcheck:'test'},firstCursor(),async()=>new Response(null,{status:429}));assert.equal(failed.sources[5].status,'error');assert.equal(healthyCursor(failed.nextCursor,failed.sources),null);
+console.log('PASS: five retailer schemas, URL validation, vehicle location, strict matching, combined pagination and quota handling');

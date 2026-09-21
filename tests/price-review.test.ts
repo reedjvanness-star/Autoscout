@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import {inspectListingPage,applyPriceReview,checkListingPrice} from '../lib/price-review';
+import {normalizeMarketcheck} from '../lib/marketcheck';
+import {initialFilters,rank} from '../lib/domain';
+import {checkedFullPrice} from '../lib/price-safety';
+const car=normalizeMarketcheck({id:'price-test',vin:'3MW59FT06T8G07697',price:7500,vdp_url:'https://www.pacificautocenter.com/used-Fontana-2026-BMW-3+Series-M340i-3MW59FT06T8G07697',build:{make:'BMW',model:'3 Series',trim:'M340i',year:2026}},false)!;
+const html=(price:number,vin=car.vin)=>`<p>VIN: ${vin} $7,500 SAVINGS Internet Price $${price} Monthly payment $850</p><script type="application/ld+json">${JSON.stringify({'@type':'Vehicle',vehicleIdentificationNumber:vin,offers:{price,priceCurrency:'USD'}})}</script>`;
+const review=inspectListingPage(car,html(59580));
+assert.equal(review.sourcePrice,59580);assert.equal(review.status,'corrected');
+const corrected=applyPriceReview(car,review);assert.equal(corrected.price,59580);
+assert(checkedFullPrice(corrected));
+for(const status of ['matched','corrected'] as const){
+ for(const checkedAt of ['invalid',new Date(Date.now()+3600000).toISOString(),new Date(Date.now()-86400000).toISOString()]){
+  const stale={...review,status,checkedAt};
+  const result=applyPriceReview({...car,url:'https://seller.example/car'},stale);
+  assert(result.priceWarning,'invalid or stale evidence cannot approve a price');
+  assert.equal(rank([result],[],{...initialFilters,maxPrice:35000}).length,0);
+  assert(!checkedFullPrice({...corrected,priceReview:stale}));
+ }
+}
+assert.equal(rank([corrected],[],{...initialFilters,maxPrice:35000}).length,0,'recheck hard budget after correction');
+assert.equal(inspectListingPage(car,html(50000,'DIFFERENTVIN12345')).status,'unverified','ignore recommended cars with another VIN');
+assert.equal(inspectListingPage(car,`<p>VIN ${car.vin} Advertised price is an approximate amount to finance, based on $3K DP. Retail Price $27,200</p>`).status,'conditional');
+assert.equal(inspectListingPage(car,`<p>VIN ${car.vin} Internet special pricing reflects a partial down payment of 25%. Internet Price $29,495</p>`).status,'conditional');
+assert.equal(inspectListingPage(car,html(59580)+'<p>Payment estimate based on 10% down, 72 months.</p>').status,'corrected','ordinary payment calculator is not a conditional cash price');
+assert.equal(inspectListingPage(car,`<p>VIN ${car.vin} Internet Price $30,000 Sale price $35,000</p>`).status,'unverified','conflicting labels must not produce invented price');
+assert.equal(inspectListingPage(car,html(59580)+'<p>On Hold</p>').status,'unavailable');
+const expired=applyPriceReview(car,review,Date.parse(review.checkedAt)+25*3600000);assert(expired.priceWarning);assert.equal(rank([expired],[],{...initialFilters,maxPrice:35000}).length,0);
+const included=applyPriceReview({...car,fees:85},{...review,feesIncluded:true});assert.equal(included.total,59580,'do not charge an included fee twice');
+const gone=await checkListingPrice(car,async()=>new Response(null,{status:410}));assert.equal(gone.status,'unavailable');assert.equal(rank([applyPriceReview(car,gone)],[],initialFilters).length,0);
+let calls=0;await checkListingPrice({...car,url:'http://127.0.0.1/admin'},async()=>{calls++;return new Response('')});assert.equal(calls,0,'private/unapproved hosts never fetched');
+const redirect=await checkListingPrice(car,async(_url,init)=>{assert.equal(init?.redirect,'manual');assert(!JSON.stringify(init).includes('Bearer'));return new Response(null,{status:302,headers:{Location:'https://evil.example/'}})});assert.equal(redirect.status,'unverified');
+const kbb={...car,url:'https://www.kbb.com/cars-for-sale/vehicle/787474304',price:52000};
+assert.equal(inspectListingPage(kbb,'<meta property="og:url" content="https://www.kbb.com/cars-for-sale/vehicle/787474304"><p>$1,257 below market Listing Price $51,500</p>').sourcePrice,51500);
+console.log('PASS: exact vehicle prices, savings, financing, ambiguity, availability, expiration, fees, and request boundaries');
+const highlight=(kind:string,amount:number,label:string)=>`<div class="vehiclePricingHighlight ${kind}"><span class="vehiclePricingHighlightAmount">$${amount}</span><span class="vehiclePricingHighlightLabel">${label}</span></div>`;
+for(const reversed of [false,true]){
+ const blocks=[highlight('dealerDiscount',1110,'Savings'),highlight('featuredPrice',8689,'Internet Price')];
+ if(reversed)blocks.reverse();
+ const page=`<p>VIN ${car.vin}</p><div id="buy-${car.vin}"><div>${blocks.join('')}</div></div><div id="lease-${car.vin}">${highlight('featuredPrice',299,'Price')}</div>`;
+ assert.equal(inspectListingPage(car,page).sourcePrice,8689,'use exact VIN cash price, independent of discount ordering and lease price');
+}
+const unsafe=applyPriceReview({...car,url:'https://seller.example/used-Test-BMW-3MW59FT06T8G07697',priceReview:undefined});
+assert(unsafe.priceWarning,'unchecked discount-prone feed amounts require source verification');
+assert.equal(rank([unsafe],[],{...initialFilters,maxPrice:35000}).length,0,'unknown full price cannot qualify under budget');
