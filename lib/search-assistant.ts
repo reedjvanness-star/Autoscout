@@ -11,6 +11,11 @@ question must be empty for executable searches. Use action clarify only for genu
 Return the complete filter object, not a patch. All claims about listings come from inventory, never from you.`;
 export async function interpretSearch(text:string,filters:Filters,messages:Message[],options:{apiKey?:string;model?:string;request?:typeof fetch}={}){
  const current=filterSchema.parse(filters);
+ // Relative mileage needs an existing limit or an explicit amount; model output is not evidence of user intent.
+ const relativeMileage=/\b(?:lower|less|fewer|reduce|decrease)\s+(?:the\s+)?(?:mileage|miles)\b|\bmileage\s+(?:lower|less)\b/i.test(text);
+ const explicitMileage=/\b\d[\d,.]*\s*k?\s*(?:miles|mi\b)|\b(?:mileage|miles)\s*(?:(?:under|below|to|of|at|max(?:imum)?|limit|is)\s*)*[:=]?\s*\d/i.test(text);
+ if(relativeMileage&&current.maxMiles===null&&!explicitMileage)return {filters:current,question:'What maximum mileage would you like? Your current cars and requirements will stay unchanged until you choose a limit.',action:'clarify',mode:options.apiKey?'AI':'Basic filter parser · AI not connected'};
+
  if(!options.apiKey)return basic(text,current);
  const response=await (options.request??fetch)('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{Authorization:`Bearer ${options.apiKey}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(25000),body:JSON.stringify({model:options.model||'gpt-4.1-mini',max_tokens:1600,temperature:0,store:false,parallel_tool_calls:false,
  messages:[{role:'system',content:instructions},{role:'system',content:'Current filters: '+JSON.stringify(current)},...messages.slice(-6).map(m=>({role:m.role,content:m.text})),{role:'user',content:text}],

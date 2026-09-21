@@ -25,3 +25,12 @@ assert.equal(result.question,'','search responses execute rather than echo an AI
 const echo=await interpretSearch('find a green truck',initialFilters,[],{apiKey:'test',request:async()=>Response.json({choices:[{message:{tool_calls:[{function:{name:'update_search',arguments:JSON.stringify({filters:initialFilters,question:'find a green truck',action:'clarify'})}}]}}]})});
 assert.equal(echo.filters.bodyType,'pickup');assert.equal(echo.filters.exteriorColor,'green');assert.equal(echo.question,'');
 console.log('PASS: detailed green-truck request, follow-ups, exact provider filters, missing evidence, and strict AI execution');
+
+for(const text of ['Keep this M5 search but lower the mileage.','Lower mileage','Find fewer miles for my M5 under $30,000']){
+ let called=false;
+ const current=filterSchema.parse({make:'BMW',model:'M5',maxPrice:30000});
+ const clarification=await interpretSearch(text,current,[],{apiKey:'test-only',request:async()=>{called=true;throw Error('Should clarify before provider call')}});
+ assert.equal(called,false);assert.equal(clarification.action,'clarify');assert.match(clarification.question,/maximum mileage/);assert.deepEqual(clarification.filters,current);
+}
+const explicit=await interpretSearch('lower the mileage to 40,000 miles',initialFilters,[],{apiKey:'test-only',request:async()=>Response.json({choices:[{message:{tool_calls:[{function:{name:'update_search',arguments:JSON.stringify({filters:{...initialFilters,maxMiles:40000},question:'',action:'search'})}}]}}]})});
+assert.equal(explicit.filters.maxMiles,40000);assert.equal(explicit.action,'search');

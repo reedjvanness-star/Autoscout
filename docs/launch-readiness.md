@@ -57,3 +57,11 @@ Passing local tests does not establish all of the launch checks above. Record li
 - Saved-search controls no longer promise notifications when the scheduler is inactive. Scheduler/email remain unavailable for this release.
 - Price regression, account-isolation, alerts and shortlist tests pass, along with TypeScript. Isolation tests cover fresh local workspaces, encrypted credentials and cross-user decryption rejection; production fresh-account end-to-end testing is still needed.
 - Shared inventory access and provider production-use permission remain unresolved. No paid upgrades purchased. Scout API testing awaits the owner's existing-key versus new-key choice; no owner key was exposed to other accounts.
+
+## Live Scout and scheduler check — September 21
+
+- Owner approved reuse of their existing OpenAI connection. Live comparison request succeeded while preserving BMW M5, $30,000 budget and 80 existing results.
+- Follow-up “lower the mileage” exposed an invented 50,000-mile default when no limit existed. Added a deterministic clarification guard and regression coverage; explicit mileage requests still execute. The test search was paused.
+- MarketCheck dashboard still shows Free, 500 calls/month and 501 used. No upgrade or charge authorized.
+- GitHub hourly workflow exists and has attempted scheduled runs, but the repository has no Actions secrets; scheduled checks fail before reaching MotorScout. SCHEDULER_SECRET and MOTORSCOUT_URL must be configured, then heartbeat verified. Browser security confirmation is required before creating scheduler access.
+- Sites still has only its existing encryption secret. No shared inventory/AI, email, scheduler or support configuration added. Auto.dev/J.D. Power approval replies absent in the checked inbox.
