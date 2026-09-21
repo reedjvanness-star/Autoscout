@@ -1,9 +1,10 @@
 import {safeUrl,priceWarning,type Listing,type Filters,type Source} from './domain';
+import {craigslistHost,marketplaceRegionBatch} from './marketplace-regions';
 import {knownFeatures} from './vehicle-requirements';
 
 export const marketplaceNames={'cargurus.com':'CarGurus','cars.com':'Cars.com','truecar.com':'TrueCar','autotrader.com':'AutoTrader','craigslist.org':'Craigslist','facebook.com':'Facebook Marketplace'} as const;
 export const FACEBOOK_ACTOR='qFR6mjgdwPouKLDvE';
-export function facebookInput(f:Filters){return {keywordSearches:[{query:[f.make,f.model,f.trim,f.exteriorColor,f.bodyType,...f.requiredTerms].filter(Boolean).join(' ')||'used cars',locationSlug:'denver'}],fetchDetails:true,maxListings:20,availability:'available',deduplicateListings:true,...(f.maxPrice!==null?{maxPrice:Math.max(0,f.maxPrice-f.shippingAllowance)}:{})};}
+export function facebookInput(f:Filters){return {keywordSearches:marketplaceRegionBatch('facebook',f.state).regions.map(locationSlug=>({query:[f.make,f.model,f.trim,f.exteriorColor,f.bodyType,...f.requiredTerms].filter(Boolean).join(' ')||'used cars',locationSlug})),fetchDetails:true,maxListings:10,availability:'available',deduplicateListings:true,...(f.maxPrice!==null?{maxPrice:Math.max(0,f.maxPrice-f.shippingAllowance)}:{})};}
 export function normalizeFacebook(x:any):Listing|null{
  if(!x||x.country_code!=='US'||x.condition!=='USED'||x.is_live!==true||x.is_sold!==false||x.is_pending!==false)return null;
  const url=safeUrl(x.url);if(!url||new URL(url).hostname.replace(/^www\./,'')!=='facebook.com')return null;
@@ -16,9 +17,9 @@ export const MARKETPLACE_RUN_CAP=0.10;
 export const ACTOR='QvdSsCWLcIKzKSeu3';
 const string=(v:unknown)=>typeof v==='string'?v:'';
 const number=(v:unknown)=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>=0?Number(v):null;
-export function marketplaceInput(f:Filters){
- const craigslist=!f.state||f.state==='CO';
- return {sources:['cargurus','cars-com','truecar',...(craigslist?['craigslist']:[])],...(craigslist?{craigslistRegions:['denver']}:{}),make:f.make,model:f.model,
+export function marketplaceInput(f:Filters,batch=0){
+ const regions=marketplaceRegionBatch('automotive',f.state,batch).regions;
+ return {sources:[...(batch===0?['cars-com','cargurus','truecar']:[]),...(regions.length?['craigslist']:[])],craigslistRegions:regions.map(r=>r+'.craigslist.org'),make:f.make,model:f.model,
   keywords:[f.trim,f.exteriorColor,f.bodyType,...f.features,...f.requiredTerms].filter(Boolean).length?[[f.make,f.model,f.trim,f.exteriorColor,f.bodyType,...f.features,...f.requiredTerms].filter(Boolean).join(' ')]:[],
   condition:'used',detail:'full',priceCurrency:'USD',mileageUnit:'mi',maxResultsPerUrl:10,maxResults:40,
   ...(f.minYear!==null?{yearFrom:f.minYear}:{}),...(f.maxPrice!==null?{priceMax:Math.max(0,f.maxPrice-f.shippingAllowance)}:{}),
@@ -29,11 +30,11 @@ export function normalizeMarketplace(x:any):Listing|null{
  if(!x||typeof x!=='object')return null;
  const url=safeUrl(x.url);if(!url)return null;
  const hostname=new URL(url).hostname.replace(/^www\./,'');
- const host=hostname==='denver.craigslist.org'?'craigslist.org':hostname;if(!(host in marketplaceNames))return null;
+ const host=craigslistHost(hostname)?'craigslist.org':hostname;if(!(host in marketplaceNames))return null;
  const path=new URL(url).pathname;
  if(host==='autotrader.com'&&!/^\/cars-for-sale\/(?:vehicle\/\d+\/?|vehicledetails\.xhtml)$/.test(path))return null;
  if(host==='autotrader.com'&&path.endsWith('vehicledetails.xhtml')&&!/^\d+$/.test(new URL(url).searchParams.get('listingId')??''))return null;
- if(host!=='autotrader.com'&&(host==='facebook.com'?!/^\/marketplace\/item\/\d+\/?$/.test(path):host==='craigslist.org'? !(/^\/view\/d\/[^/]+\/[A-Za-z0-9_-]+\/?$/.test(path)||/^\/(?:cto|ctd)\/d\/[^/]+\/\d+\.html$/.test(path)):!(/\/details\/\d+/.test(path)||/\/vehicledetail\//.test(path)||/\/listing\//.test(path)||/\/vehicledetails\//.test(path))))return null;
+ if(host!=='autotrader.com'&&(host==='facebook.com'?!/^\/marketplace\/item\/\d+\/?$/.test(path):host==='craigslist.org'? !(/^\/view\/d\/[^/]+\/[A-Za-z0-9_-]+\/?$/.test(path)||/^\/(?:[a-z0-9-]+\/)?(?:cto|ctd)\/d\/[^/]+\/\d+\.html$/.test(path)):!(/\/details\/\d+/.test(path)||/\/vehicledetail\//.test(path)||/\/listing\//.test(path)||/\/vehicledetails\//.test(path))))return null;
  const offer=Array.isArray(x.offers)?x.offers.length===1?x.offers[0]:null:x.offers;
  const price=number(offer?.price),year=number(x.vehicleModelDate);
  if(price===null||price<=0||offer?.priceCurrency!=='USD')return null;
@@ -67,6 +68,6 @@ export async function verifyFreeAccount(key:string,request:typeof fetch=fetch){
  if(!data?.id||data.isPaying!==false||data.plan?.monthlyBasePriceUsd!==0)throw new MarketplaceError(`This connection requires an Apify Free account. No paid plan will be used. Verification: account ${data?.id?'present':'missing'}, paying flag ${typeof data?.isPaying==='boolean'?String(data.isPaying):'missing'}, base price ${typeof data?.plan?.monthlyBasePriceUsd==='number'?data.plan.monthlyBasePriceUsd:'missing'}.`);
  return String(data.id);
 }
-export function marketplaceSources(rows:Listing[],terminal:boolean,state=''):Source[]{
- return Object.values(marketplaceNames).filter(name=>name!=='Facebook Marketplace'&&name!=='AutoTrader'&&(name!=='Craigslist'||!state||state==='CO')).map(name=>{const count=rows.filter(r=>r.source===name).length;const region=name==='Craigslist'?'Denver-area coverage only. ':'';return {name,status:count?'searched':terminal?'error':'ready',count,inspected:count,detail:region+(count?`${count} listings returned through Apify. Your exact filters are applied before display.`:terminal?'The provider returned no usable listings for this source. Coverage is not verified.':'Marketplace search is still running.')};});
+export function marketplaceSources(rows:Listing[],terminal:boolean,state='',batch=0):Source[]{
+ return Object.values(marketplaceNames).filter(name=>name!=='Facebook Marketplace'&&name!=='AutoTrader'&&(batch===0||name==='Craigslist')).map(name=>{const count=rows.filter(r=>r.source===name).length;const plan=marketplaceRegionBatch('automotive',state,batch);const region=name==='Craigslist'?`Targeted regions ${plan.start+1}–${plan.start+plan.regions.length} of ${plan.total}. Result and free-credit limits apply; this is partial coverage. `:'';return {name,status:count?'searched':terminal?'error':'ready',count,inspected:count,detail:region+(count?`${count} listings returned through Apify. Your exact filters are applied before display.`:terminal?'The provider returned no usable listings for this source. Coverage is not verified.':'Marketplace search is still running.')};});
 }

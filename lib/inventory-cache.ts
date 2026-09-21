@@ -15,7 +15,9 @@ export async function cachedInventory(database:Database,filters:Filters,keys:Inv
   }}
  }catch{/* A cache failure must not disable live search. */}
  const result=await search(filters,keys,cursor);
- const ttl=result.sources.some(source=>source.status==='error')?30000:300000;
+ // Avoid repeating the same blocked provider request every 30 seconds.
+ const quotaLimited=result.sources.some(source=>source.status==='error'&&/HTTP 429/.test(source.detail));
+ const ttl=quotaLimited?300000:result.sources.some(source=>source.status==='error')?30000:300000;
  const payload=JSON.stringify({createdAt:now,expiresAt:now+ttl,result});
  try{
   // Bound storage and leave unusually large responses uncached.

@@ -21,16 +21,20 @@ assert.equal(rank([{...row,evidenceText:'No overland equipment. Black leather op
 assert(!marketplaceSources([row],true).some(s=>s.name==='AutoTrader'),'Apify cannot overwrite the separate AutoTrader feed status');
 const input=marketplaceInput({...initialFilters,make:'BMW',model:'M4',trim:'Competition',exteriorColor:'green',maxPrice:60000,shippingAllowance:1000,maxMiles:40000});
 assert.equal(input.priceMax,59000);assert.equal(input.maxResults,40);assert.equal(input.sources.length,4);assert(input.keywords[0].includes('Competition green'));
-assert.deepEqual(input.craigslistRegions,['denver']);
-assert(!marketplaceInput({...initialFilters,state:'CA'}).sources.includes('craigslist'));
-assert(!marketplaceSources([],true,'CA').some(s=>s.name==='Craigslist'));
+assert.equal(input.craigslistRegions.length,20);
+assert(input.craigslistRegions.every(r=>r.endsWith('.craigslist.org')));
+assert(marketplaceInput({...initialFilters,state:'CA'}).sources.includes('craigslist'));
+assert.deepEqual(marketplaceInput(initialFilters,1).sources,['craigslist']);
+assert(marketplaceSources([],true,'CA').some(s=>s.name==='Craigslist'));
 const craigslist=normalizeMarketplace({...raw,url:'https://www.craigslist.org/view/d/englewood-good-condition-great-price/GrTE7iG08RGWCN0SHm89jw',color:'custom',additionalProperties:{exteriorColor:'Champagne Mica'},fuelType:'gas',itemLocation:{address:{addressRegion:'CO'}},offers:{price:8750,priceCurrency:'USD'}})!;
 assert.equal(craigslist.source,'Craigslist');assert.equal(craigslist.price,8750);assert.equal(craigslist.exteriorColor,'Champagne Mica');assert.equal(craigslist.fuel,'gasoline');
 assert.equal(normalizeMarketplace({...raw,url:'https://craigslist.org.evil.test/view/d/car/123'}),null);
 assert.equal(normalizeMarketplace({...raw,url:'https://www.craigslist.org/search/cta'}),null);
-assert(marketplaceSources([craigslist],true,'CO').find(s=>s.name==='Craigslist')!.detail.includes('Denver-area'));
+assert(marketplaceSources([craigslist],true,'CO').find(s=>s.name==='Craigslist')!.detail.includes('Targeted regions'));
 await assert.rejects(()=>verifyFreeAccount('test',async()=>Response.json({data:{id:'account',isPaying:true,plan:{monthlyBasePriceUsd:29}}})),/Free account/);
 assert.equal(await verifyFreeAccount('test',async(_url,init)=>{assert.equal(init?.redirect,'manual');return Response.json({data:{id:'account',isPaying:false,plan:{monthlyBasePriceUsd:0}}})}),'account');
 await assert.rejects(()=>apifyRequest('secret','users/me',{},async()=>new Response(null,{status:302,headers:{Location:'https://untrusted.example'}})),/302/);
 await assert.rejects(()=>apifyRequest('secret','users/me',{},async()=>new Response(null,{status:401})),/401/);
 console.log('PASS: marketplace normalization, exact filters, missing specs, source attribution and free-account gate');
+
+for(const host of ['sfbay','newyork','denver'])assert(normalizeMarketplace({...raw,url:`https://${host}.craigslist.org/sfc/cto/d/example/1234567890.html`}));

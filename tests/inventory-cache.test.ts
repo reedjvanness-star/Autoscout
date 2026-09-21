@@ -17,7 +17,8 @@ try{
  failed=true;
  await cachedInventory(db,initialFilters,{autodev:'failure'},undefined,search,1400000);
  await cachedInventory(db,initialFilters,{autodev:'failure'},undefined,search,1420000);assert.equal(calls,5);
- await cachedInventory(db,initialFilters,{autodev:'failure'},undefined,search,1430001);assert.equal(calls,6,'provider errors retry after 30 seconds');
+ await cachedInventory(db,initialFilters,{autodev:'failure'},undefined,search,1430001);assert.equal(calls,5,'quota errors are not retried every 30 seconds');
+ await cachedInventory(db,initialFilters,{autodev:'failure'},undefined,search,1700001);assert.equal(calls,6,'quota requests retry after five minutes');
  const broken={prepare(){throw Error('cache unavailable')}};
  await cachedInventory(broken,initialFilters,{},undefined,search,1500000);assert.equal(calls,7,'cache outage does not break live results');
  sql.prepare('INSERT INTO workspaces VALUES(?,?,?)').run('real-user','private-workspace',1);
