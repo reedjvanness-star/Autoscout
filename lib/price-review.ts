@@ -78,7 +78,8 @@ export function inspectListingPage(row:Listing,html:string,now=new Date().toISOS
   if(sameVehicle){
     const amount='\\$\\s*([\\d,]+(?:\\.\\d{2})?)';
     const values=(label:string)=>[...mainText.matchAll(new RegExp('(?:'+label+')\\s*:?\\s*'+amount,'gi'))].map(m=>money(m[1])!).filter(Boolean);
-    const total=values('Total Price|Final Price|Dealer Price|Koons Price|Wesley Chapel Price|Hood Chevy Price|Malcolm Cunningham Price');
+    const afterFees=values('Price After Fees');
+    const total=afterFees.length?afterFees:values('Total Price|Final Price|Dealer Price|Koons Price|Wesley Chapel Price|Hood Chevy Price|Malcolm Cunningham Price|Vandergriff Price');
     const selling=values("Your Sale Price|Sale Price|Internet Price|Asking Price|Today's Price|Listing Price");
     const retail=values('Retail Price(?:\\s*\\([^)]*(?:Fee Included|Includes Fees)[^)]*\\))?');
     visible=total.length?total:selling.length?selling:retail;
@@ -88,12 +89,12 @@ export function inspectListingPage(row:Listing,html:string,now=new Date().toISOS
   const prices=[...new Set(cash.length?cash:visible.length?visible:candidates)];
   if(prices.length!==1)return result('unverified',prices.length?'The seller page contains conflicting vehicle prices. Confirm the full cash amount.':'Could not identify one price for this exact vehicle on its source page.');
   const sourcePrice=prices[0];
-  const savings=[...mainText.matchAll(/(?:Savings|Dealer Discount|Difference|Rebate)\s*:?\s*-?\$\s*([\d,]+(?:\.\d{2})?)|\$\s*([\d,]+(?:\.\d{2})?)\s*(?:SAVINGS|DIFFERENCE|OFF)\b/gi)].map(m=>money(m[1]??m[2]));
-  if(!cash.length&&savings.includes(sourcePrice))return result('conditional','The extracted amount is labeled as savings, a discount or a rebate. It is not a verified full purchase price.');
+  const savings=[...mainText.matchAll(/(?:Savings|Dealer Discount|Difference|Rebate|Optional Accessories|Doc Fee)\s*:?\s*-?\$\s*([\d,]+(?:\.\d{2})?)|\$\s*([\d,]+(?:\.\d{2})?)\s*(?:SAVINGS|DIFFERENCE|OFF)\b/gi)].map(m=>money(m[1]??m[2]));
+  if(!cash.length&&savings.includes(sourcePrice))return result('conditional','The extracted amount is labeled as savings, a discount, rebate, fee or accessory charge. It is not a verified full purchase price.');
   // Tiny amounts in structured data can themselves be savings or payments.
   if(sourcePrice<1000)return result('conditional','The source amount is too ambiguous to identify as a full vehicle purchase price.');
   const found=result(sourcePrice===base.reportedPrice?'matched':'corrected',sourcePrice===base.reportedPrice?'Advertised amount matched the exact vehicle on its source page. Taxes and other costs may apply.':'Replaced the provider amount with the advertised price found for this vehicle on its source page. Taxes and other costs may apply.',sourcePrice);
-  if(/Doc Fee Included/i.test(mainText))found.feesIncluded=true;
+  if(/Doc Fee Included/i.test(mainText)||[...mainText.matchAll(/Price After Fees\s*:?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi)].some(m=>money(m[1])===sourcePrice))found.feesIncluded=true;
   return found;
 }
 

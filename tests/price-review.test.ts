@@ -41,5 +41,12 @@ for(const reversed of [false,true]){
  assert.equal(inspectListingPage(car,page).sourcePrice,8689,'use exact VIN cash price, independent of discount ordering and lease price');
 }
 const unsafe=applyPriceReview({...car,url:'https://seller.example/used-Test-BMW-3MW59FT06T8G07697',priceReview:undefined});
+const accessoryCar={...car,vin:'5TFAZ5CN6HX041878',url:'https://www.vandergriffacura.com/used/Toyota/test.htm',price:1998,year:2017,miles:66223,priceReview:undefined};
+const accessoryPage='<p>VIN 5TFAZ5CN6HX041878 Vandergriff Price $26,999 Doc Fee $225 Price After Fees $27,224 Optional Accessories $1,998</p>';
+const accessoryReview=inspectListingPage(accessoryCar,accessoryPage);
+assert.equal(accessoryReview.sourcePrice,27224,'accessories never replace the full price after fees');
+assert.equal(accessoryReview.feesIncluded,true);
+assert.equal(rank([applyPriceReview(accessoryCar,accessoryReview)],[],{...initialFilters,maxPrice:10000}).length,0);
+assert(applyPriceReview(accessoryCar).priceWarning,'unverified cars from the affected dealer stay out of budgets');
 assert(unsafe.priceWarning,'unchecked discount-prone feed amounts require source verification');
 assert.equal(rank([unsafe],[],{...initialFilters,maxPrice:35000}).length,0,'unknown full price cannot qualify under budget');
