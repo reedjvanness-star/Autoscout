@@ -80,7 +80,7 @@ if(search){
   const cursor=continuing?(a.automatic?healthyCursor(w.nextCursor,w.sources):w.nextCursor):undefined;
   if(continuing&&!cursor)throw Error('Remaining sources are unavailable. Your collected cars are still here.');
   if(!continuing)w.filters=await resolveSearchVehicle(id,w.filters);
-  const result=await searchListings(w.filters,await inventoryKeys(id),cursor??undefined);
+  const result=await searchListings(w.filters,await inventoryKeys(id),cursor??undefined,!continuing);
   const latest=await readWorkspace(id);
   if(latest.searchId!==w.searchId||(continuing&&JSON.stringify(latest.nextCursor)!==JSON.stringify(w.nextCursor)))throw Error('Your search changed while inventory was loading.');
   w.saved=latest.saved;w.compare=latest.compare;w.comparisonCars=latest.comparisonCars;

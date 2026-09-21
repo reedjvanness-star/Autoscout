@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {firstResults} from '../lib/first-results';
+import {searchInventory} from '../lib/inventory';
+import {initialFilters} from '../lib/domain';
+import {healthyCursor} from '../lib/search-session';
+
+const calls:string[]=[];
+const request:typeof fetch=async input=>{
+ const url=new URL(String(input));calls.push(url.host+url.pathname);
+ if(url.host==='api.auto.dev')return Response.json({data:[{vehicle:{year:2010,make:'Toyota',model:'Tacoma'},retailListing:{used:true,price:12000,miles:150000,vdp:'https://seller.example/car'}}],links:{next:null}});
+ return Response.json({listings:[],num_found:0});
+};
+const search:typeof searchInventory=(f,k,c)=>searchInventory(f,k,c,request);
+const first=await firstResults(initialFilters,{autodev:'test',marketcheck:'test'},search);
+assert.deepEqual(calls,['api.auto.dev/listings'],'first response does not wait for or call secondary feeds');
+assert.equal(first.listings.length,1);
+assert.deepEqual(first.nextCursor,{dealer:0,private:0,auction:0,autodev:null,autotrader:0,retailers:0});
+assert.equal(first.sources[0].status,'ready','deferred sources must not be labeled checked');
+assert(healthyCursor(first.nextCursor,first.sources),'background collection remains enabled');
+calls.length=0;
+await search(initialFilters,{autodev:'test',marketcheck:'test'},first.nextCursor!);
+assert.equal(calls.length,5,'all deferred feeds are checked in the next batch');
+assert(calls.every(url=>!url.startsWith('api.auto.dev')),'exhausted first feed is not repeated');
+calls.length=0;
+const privateFirst=await firstResults({...initialFilters,seller:'private'},{autodev:'test',marketcheck:'test'},search);
+assert.equal(calls.length,1);assert(calls[0].includes('/fsbo/'));
+assert.equal(privateFirst.nextCursor?.autodev,null);
+assert.equal(privateFirst.nextCursor?.dealer,null);
+calls.length=0;
+const only=await firstResults(initialFilters,{autodev:'test'},search);
+assert.equal(only.nextCursor,null,'do not queue unconfigured sources');
+const failed=await firstResults(initialFilters,{autodev:'test',marketcheck:'test'},(f,k,c)=>searchInventory(f,k,c,async()=>new Response('',{status:429})));
+assert.equal(healthyCursor(failed.nextCursor,failed.sources)?.dealer,0,'a failed first source cannot prevent checking the others');
+console.log('PASS: first-feed response, complete deferred coverage, seller filters and failure recovery');

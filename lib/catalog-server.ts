@@ -15,10 +15,17 @@ export async function vehicleCatalog(id:string,field:CatalogField,make='',model=
 }
 export async function resolveSearchVehicle(id:string,input:Filters):Promise<Filters>{
  const f={...input};
+ // Suggestions are loaded separately by the vehicle picker. Search should use
+ // those cached spellings without waiting for up to three catalogue API calls.
+ async function cachedName(field:CatalogField,value:string,make='',model=''){
+  const cacheId=id+':catalog:'+JSON.stringify([field,make.toLowerCase(),model.toLowerCase()]);
+  const cached=await db().prepare('SELECT payload,updated_at FROM workspaces WHERE user_id=?').bind(cacheId).first<{payload:string;updated_at:number}>();
+  return cached&&Date.now()-cached.updated_at<86400000?resolveCatalogName(value,(JSON.parse(cached.payload) as CatalogResult).values):value;
+ }
  try{
-  if(f.make){const makes=await vehicleCatalog(id,'make');f.make=resolveCatalogName(f.make,makes.values);}
-  if(f.make&&f.model){const models=await vehicleCatalog(id,'model',f.make);f.model=resolveCatalogName(f.model,models.values);}
-  if(f.make&&f.model&&f.trim){const trims=await vehicleCatalog(id,'trim',f.make,f.model);f.trim=resolveCatalogName(f.trim,trims.values);}
+  if(f.make)f.make=await cachedName('make',f.make);
+  if(f.make&&f.model)f.model=await cachedName('model',f.model,f.make);
+  if(f.make&&f.model&&f.trim)f.trim=await cachedName('trim',f.trim,f.make,f.model);
  }catch{/* The catalogue improves spelling, but never blocks freeform searches. */}
  return f;
 }
