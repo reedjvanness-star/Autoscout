@@ -19,7 +19,7 @@ export async function POST(req:Request){try{
  const jobId=id+(facebook?':facebook-job':retail?':retail-marketplace-job':':marketplace-job');
  const stored=await db().prepare('SELECT payload FROM workspaces WHERE user_id=?').bind(jobId).first<{payload:string}>();
  let job:Job|undefined=stored?JSON.parse(stored.payload):undefined;
- const hasMore=(j:Job)=>!facebook&&!retail&&marketplaceRegionBatch('automotive',w.filters.state,j.batch??0).hasMore;
+ const hasMore=(j:Job)=>!facebook&&!retail&&((j.batch??0)===0||marketplaceRegionBatch('automotive',w.filters.state,(j.batch??0)-1).hasMore);
  if(a.action==='start'){
   const advance=job?.searchId===w.searchId&&job.state==='IMPORTED'&&a.advance===true&&hasMore(job);
   if(job?.searchId===w.searchId&&!advance&&!(job.state==='FAILED'&&!job.runId))return Response.json({done:terminal(job.state),state:job.state,hasMore:hasMore(job)});

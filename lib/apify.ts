@@ -18,8 +18,9 @@ export const ACTOR='QvdSsCWLcIKzKSeu3';
 const string=(v:unknown)=>typeof v==='string'?v:'';
 const number=(v:unknown)=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))&&Number(v)>=0?Number(v):null;
 export function marketplaceInput(f:Filters,batch=0){
- const regions=marketplaceRegionBatch('automotive',f.state,batch).regions;
- return {sources:[...(batch===0?['cars-com','cargurus','truecar']:[]),...(regions.length?['craigslist']:[])],craigslistRegions:regions.map(r=>r+'.craigslist.org'),make:f.make,model:f.model,
+ // Live actor schema accepts region slugs, despite its public docs showing hostnames.
+ const regions=batch>0?marketplaceRegionBatch('automotive',f.state,batch-1).regions:[];
+ return {sources:[...(batch===0?['cars-com','cargurus','truecar']:[]),...(regions.length?['craigslist']:[])],craigslistRegions:regions,make:f.make,model:f.model,
   keywords:[f.trim,f.exteriorColor,f.bodyType,...f.features,...f.requiredTerms].filter(Boolean).length?[[f.make,f.model,f.trim,f.exteriorColor,f.bodyType,...f.features,...f.requiredTerms].filter(Boolean).join(' ')]:[],
   condition:'used',detail:'full',priceCurrency:'USD',mileageUnit:'mi',maxResultsPerUrl:10,maxResults:40,
   ...(f.minYear!==null?{yearFrom:f.minYear}:{}),...(f.maxPrice!==null?{priceMax:Math.max(0,f.maxPrice-f.shippingAllowance)}:{}),
@@ -86,5 +87,5 @@ export async function verifyFreeAccount(key:string,request:typeof fetch=fetch){
  return String(data.id);
 }
 export function marketplaceSources(rows:Listing[],terminal:boolean,state='',batch=0):Source[]{
- return Object.values(marketplaceNames).filter(name=>!['Facebook Marketplace','AutoTrader','CarMax','Carvana'].includes(name)&&(batch===0||name==='Craigslist')).map(name=>{const count=rows.filter(r=>r.source===name).length;const plan=marketplaceRegionBatch('automotive',state,batch);const region=name==='Craigslist'?`Targeted regions ${plan.start+1}–${plan.start+plan.regions.length} of ${plan.total}. Result and free-credit limits apply; this is partial coverage. `:'';return {name,status:count?'searched':terminal?'error':'ready',count,inspected:count,detail:region+(count?`${count} listings returned through Apify. Your exact filters are applied before display.`:terminal?'The provider returned no usable listings for this source. Coverage is not verified.':'Marketplace search is still running.')};});
+ return Object.values(marketplaceNames).filter(name=>!['Facebook Marketplace','AutoTrader','CarMax','Carvana'].includes(name)&&(batch===0?name!=='Craigslist':name==='Craigslist')).map(name=>{const count=rows.filter(r=>r.source===name).length;const plan=marketplaceRegionBatch('automotive',state,Math.max(0,batch-1));const region=name==='Craigslist'?`Targeted regions ${plan.start+1}–${plan.start+plan.regions.length} of ${plan.total}. Result and free-credit limits apply; this is partial coverage. `:'';return {name,status:count?'searched':terminal?'error':'ready',count,inspected:count,detail:region+(count?`${count} listings returned through Apify. Your exact filters are applied before display.`:terminal?'The provider returned no usable listings for this source. Coverage is not verified.':'Marketplace search is still running.')};});
 }

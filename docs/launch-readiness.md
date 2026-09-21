@@ -44,3 +44,8 @@ Passing local tests does not establish all of the launch checks above. Record li
 - CarMax: independent provider request returned HTTP 403; AutoTrader returned upstream HTTP 400. Disabled automatic independent attempts and associated connection claims; existing MarketCheck paths remain quota-blocked.
 - These retrieval checks do not establish public redistribution rights. Auto.dev production-use inquiry remains unanswered in the checked thread.
 - Direct dealer-authorized exports are the durable alternative. See `docs/dealer-inventory-plan.md`; no dealer feed has been received or connected.
+
+- Version 51 live import confirmed 40 Carvana listings. The four-center Facebook request returned usable listings too, without proving results from every center.
+- Regional automotive startup regression identified: the live actor accepts Craigslist region slugs, while its public schema page gives hostname examples. Full domains rejected the entire Cars.com/CarGurus/TrueCar/Craigslist request. Changed requests to slugs and added a regression test; no source is considered verified merely because input validation passes.
+
+- Corrected regional provider trial returned 12 Craigslist cars across multiple regions outside Denver. Craigslist is now placed in subsequent batches so its fast regional results cannot consume the entire first Cars.com/CarGurus/TrueCar result cap.
