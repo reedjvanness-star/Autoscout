@@ -4,17 +4,29 @@ on:
     - cron: '17 * * * *'
   workflow_dispatch:
 permissions: {}
+concurrency:
+  group: motorscout-saved-search-checks
+  cancel-in-progress: false
 jobs:
   check-enabled-alerts:
+    if: github.repository == 'reedjvanness-star/motorscout' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
     steps:
       - name: Check only explicitly enabled alerts
         env:
-          MOTORSCOUT_URL: ${{ secrets.MOTORSCOUT_URL }}
-          SCHEDULER_SECRET: ${{ secrets.SCHEDULER_SECRET }}
+          MOTORSCOUT_URL: https://motorscout-ai.reedjvanness.chatgpt.site
+        shell: bash
         run: |
-          test -n "$MOTORSCOUT_URL" && test -n "$SCHEDULER_SECRET"
+          set -euo pipefail
+          AUDIENCE="$MOTORSCOUT_URL/api/jobs/alerts"
+          OIDC_TOKEN=$(curl --fail --silent --show-error --max-time 20 \
+            --header "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -er '.value')
+          echo "::add-mask::$OIDC_TOKEN"
           curl --fail --silent --show-error --max-time 120 \
             --request POST \
-            --header "Authorization: Bearer $SCHEDULER_SECRET" \
-            "$MOTORSCOUT_URL/api/jobs/alerts"
+            --header "Authorization: Bearer $OIDC_TOKEN" \
+            "$AUDIENCE"

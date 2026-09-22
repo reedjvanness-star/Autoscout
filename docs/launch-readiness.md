@@ -65,3 +65,7 @@ Passing local tests does not establish all of the launch checks above. Record li
 - MarketCheck dashboard still shows Free, 500 calls/month and 501 used. No upgrade or charge authorized.
 - GitHub hourly workflow exists and has attempted scheduled runs, but the repository has no Actions secrets; scheduled checks fail before reaching MotorScout. SCHEDULER_SECRET and MOTORSCOUT_URL must be configured, then heartbeat verified. Browser security confirmation is required before creating scheduler access.
 - Sites still has only its existing encryption secret. No shared inventory/AI, email, scheduler or support configuration added. Auto.dev/J.D. Power approval replies absent in the checked inbox.
+
+## Scheduler activation implementation
+
+Owner approved scheduler access. Replaced the missing static-secret dependency with short-lived GitHub OIDC credentials, constrained to the immutable MotorScout repository/owner IDs, main branch and saved-search workflow. Auth regression and existing alert tests pass. Live activation must be confirmed by a successful GitHub run and MotorScout heartbeat; email is still unconfigured.

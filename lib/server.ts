@@ -1,3 +1,4 @@
+import {schedulerConfigured} from './scheduler-auth';
 import {restoreComparisons} from './shortlist';
 import {encodeWorkspace,decodeWorkspace} from './workspace-codec';
 import {applyPriceReview} from './price-review';
@@ -11,5 +12,5 @@ export async function writeWorkspace(id:string,w:Workspace){w.messages=w.message
 export async function limitUsage(id:string,limit=500){const day=new Date().toISOString().slice(0,10);const row=await db().prepare('INSERT INTO usage(user_id,day,count) VALUES(?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < ? RETURNING count').bind(id,day,limit).first();if(!row)throw Error(id.endsWith(':inventory-pages')?'Inventory search allowance reached for today. Your collected cars are still available.':id.endsWith(':price-checks')?'Daily seller price-check allowance reached. Search results remain available; unverified prices are labeled.':'Daily limit reached: 500 searches per day. Try again tomorrow.');}
 export async function boundedJson(req:Request){const t=await req.text();if(t.length>16000)throw Error('Request is too long.');return JSON.parse(t)}
 export function failure(e:unknown){return Response.json({error:e instanceof Error?e.message:'Request failed. Please try again.'},{status:400})}
-export async function schedulerReady(){const r=await db().prepare("SELECT updated_at FROM workspaces WHERE user_id = '__scheduler__'").first<{updated_at:number}>();return !!config().SCHEDULER_SECRET&&!!r&&Date.now()-r.updated_at<26*3600000}
+export async function schedulerReady(){const r=await db().prepare("SELECT updated_at FROM workspaces WHERE user_id = '__scheduler__'").first<{updated_at:number}>();return schedulerConfigured(config())&&!!r&&Date.now()-r.updated_at<26*3600000}
 export {filterSchema};
