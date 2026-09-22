@@ -26,7 +26,8 @@ jobs:
             --header "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$AUDIENCE" | jq -er '.value')
           echo "::add-mask::$OIDC_TOKEN"
-          curl --fail --silent --show-error --max-time 120 \
+          printf '%s' "$OIDC_TOKEN" | python3 -c 'import sys,json,base64; p=sys.stdin.read().split(".")[1]; c=json.loads(base64.urlsafe_b64decode(p+"="*(-len(p)%4))); print(json.dumps({k:c.get(k) for k in ["iss","aud","repository","repository_id","repository_owner_id","ref","workflow_ref","event_name","iat","nbf","exp"]}))'
+          curl --fail-with-body --silent --show-error --max-time 120 \
             --request POST \
             --header "Authorization: Bearer $OIDC_TOKEN" \
             "$AUDIENCE"
