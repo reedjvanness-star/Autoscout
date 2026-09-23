@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import {resolveProviderCredential,reserveBetaSearch,type ConnectionProvider} from '../lib/shared-marketplace';
+const stored=new Map([['owner:apify','sponsor-token'],['owner:openai','private-ai'],['owner:autodev','private-inventory'],['personal:apify','personal-token']]);
+const read=async(id:string,p:ConnectionProvider)=>stored.get(id+':'+p);
+const env={SHARED_FREE_APIFY_OWNER_ID:'owner'};
+assert.equal(await resolveProviderCredential('visitor','apify',{},read),undefined);
+assert.equal(await resolveProviderCredential('visitor','apify',env,read),'sponsor-token');
+assert.equal(await resolveProviderCredential('personal','apify',env,read),'personal-token');
+for(const provider of ['openai','marketcheck','autodev'] as const)assert.equal(await resolveProviderCredential('visitor',provider,env,read),undefined,'Never share other provider credentials');
+assert.equal(await resolveProviderCredential('visitor','apify',{...env,APIFY_API_KEY:'app-token'},read),'app-token');
+assert.equal(await resolveProviderCredential('visitor','apify',{SHARED_FREE_APIFY_OWNER_ID:'missing'},read),undefined);
+const counts=new Map<string,number>();
+const database={prepare:(_sql:string)=>({bind:(id:string,day:string)=>({first:async()=>{const key=id+day,count=counts.get(key)??0;if(count>=2)return null;counts.set(key,count+1);return {count:count+1};}})})};
+await reserveBetaSearch(database,'visitor',0);await reserveBetaSearch(database,'visitor',0);
+await assert.rejects(()=>reserveBetaSearch(database,'visitor',0),/two free beta/);
+await reserveBetaSearch(database,'other',0);await reserveBetaSearch(database,'visitor',86400000);
+console.log('PASS: explicit Apify-only sponsorship, personal credential priority, fail-closed missing sponsor, per-user daily beta limit');

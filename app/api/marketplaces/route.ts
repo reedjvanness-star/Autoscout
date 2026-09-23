@@ -1,5 +1,6 @@
 import {identity,db,readWorkspace,writeWorkspace,boundedJson,failure} from '@/lib/server';
-import {providerKey} from '@/lib/connections';
+import {reserveBetaSearch} from '@/lib/shared-marketplace';
+import {providerKey,connectionStatus} from '@/lib/connections';
 import {apifyRequest,marketplaceInput,normalizeMarketplace,marketplaceSources,MARKETPLACE_RUN_CAP,ACTOR,FACEBOOK_ACTOR,facebookInput,normalizeFacebook,retailerMarketplaceInput,retailerMarketplaceSources} from '@/lib/apify';
 import {startBudgetedMarketplaceRun} from '@/lib/marketplace-budget';
 import {marketplaceRegionBatch} from '@/lib/marketplace-regions';
@@ -12,6 +13,8 @@ export async function POST(req:Request){try{
  const id=identity(req),a=await boundedJson(req),key=await providerKey(id,'apify');if(!key)throw Error('Connect your free marketplace account in Sources first.');
  const w=await readWorkspace(id);if(!w.searchId||a.searchId!==w.searchId)throw Error('Your search changed. Use the latest results.');
  if(!['automotive','facebook','retail'].includes(a.provider))throw Error('Unknown marketplace provider.');
+ const shared=(await connectionStatus(id)).apifyShared;
+ if(shared&&a.provider!=='automotive')return Response.json({done:true,state:'NOT_IN_FREE_BETA'});
  const facebook=a.provider==='facebook',retail=a.provider==='retail';
  if(retail&&w.filters.seller==='private')return Response.json({done:true,state:'EXCLUDED_BY_FILTER'});
  if(facebook&&!marketplaceRegionBatch('facebook',w.filters.state).regions.length)return Response.json({done:true,state:'OUTSIDE_COVERAGE'});
@@ -19,7 +22,7 @@ export async function POST(req:Request){try{
  const jobId=id+(facebook?':facebook-job':retail?':retail-marketplace-job':':marketplace-job');
  const stored=await db().prepare('SELECT payload FROM workspaces WHERE user_id=?').bind(jobId).first<{payload:string}>();
  let job:Job|undefined=stored?JSON.parse(stored.payload):undefined;
- const hasMore=(j:Job)=>!facebook&&!retail&&((j.batch??0)===0||marketplaceRegionBatch('automotive',w.filters.state,(j.batch??0)-1).hasMore);
+ const hasMore=(j:Job)=>!shared&&!facebook&&!retail&&((j.batch??0)===0||marketplaceRegionBatch('automotive',w.filters.state,(j.batch??0)-1).hasMore);
  if(a.action==='start'){
   const advance=job?.searchId===w.searchId&&job.state==='IMPORTED'&&a.advance===true&&hasMore(job);
   if(job?.searchId===w.searchId&&!advance&&!(job.state==='FAILED'&&!job.runId))return Response.json({done:terminal(job.state),state:job.state,hasMore:hasMore(job)});
@@ -29,6 +32,7 @@ export async function POST(req:Request){try{
   const locked=await db().prepare("INSERT INTO workspaces(user_id,payload,updated_at) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at WHERE json_extract(workspaces.payload,'$.searchId') != ? OR (json_extract(workspaces.payload,'$.state')='FAILED' AND json_extract(workspaces.payload,'$.runId') IS NULL) OR workspaces.payload=? RETURNING user_id").bind(jobId,JSON.stringify(next),Date.now(),w.searchId,advance?stored!.payload:'').first();
   if(!locked)return Response.json({done:false,state:'STARTING'});
   try{
+   if(shared)await reserveBetaSearch(db(),id);
    const data=await startBudgetedMarketplaceRun(db(),key,actor,facebook?facebookInput(w.filters):retail?retailerMarketplaceInput(w.filters):marketplaceInput(w.filters,next.batch),facebook?1:MARKETPLACE_RUN_CAP);
    next.runId=data.id;next.state=data.status;
   }catch(e){next.state='FAILED';await db().prepare('UPDATE workspaces SET payload=?,updated_at=? WHERE user_id=? AND payload=?').bind(JSON.stringify(next),Date.now(),jobId,startingPayload).run();throw e;}
