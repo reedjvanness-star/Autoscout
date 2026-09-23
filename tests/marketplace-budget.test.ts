@@ -27,7 +27,7 @@ try{
  assert(Math.abs(ledger.charged-0.044)<1e-9,'completed cost is charged once');
  assert.equal(ledger.pending.length,1);
  used=3.95;
- await assert.rejects(()=>startBudgetedMarketplaceRun(db,'fixture-key','actor',{},0.1,request),/Not enough free/);
+ await assert.rejects(()=>startBudgetedMarketplaceRun(db,'fixture-key','actor',{},0.1,request),/shared marketplace allowance/);
  assert.equal(starts,45,'actual account usage blocks unaffordable starts');
  used=1.22;paid=true;
  await assert.rejects(()=>startBudgetedMarketplaceRun(db,'fixture-key','actor',{},0.1,request),/Free account/);

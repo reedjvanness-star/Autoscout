@@ -43,7 +43,7 @@ export async function startBudgetedMarketplaceRun(database:Database,key:string,a
   const reservation=cap+0.02;
   if(available+1e-9<reservation){
    await save();
-   throw new MarketplaceError(`Not enough free marketplace credit for this search ($${available.toFixed(2)} available after reservations). Try again after current searches finish or the provider's billing cycle resets. Other car sources still work.`);
+   throw new MarketplaceError(`MotorScout’s shared marketplace allowance cannot fund another search right now. Your account is connected; no personal setup is needed. Existing results and saved cars remain available. New marketplace searches need restored provider credit. Remaining allowance after reservations: $${available.toFixed(3)}; this search requires $${reservation.toFixed(2)}.`);
   }
   const hold:Reservation={token:crypto.randomUUID(),cap:reservation};
   budget.pending.push(hold);await save();
