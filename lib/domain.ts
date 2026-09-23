@@ -8,7 +8,7 @@ export const initialFilters:Filters=filterSchema.parse({});
 export type ListingOffer={priceWarning?:string|null;source:string;url:string;price:number;fees:number|null;checkedAt:string};
 export type Listing=VehicleDetails&{priceReview?:PriceReview;priceWarning?:string|null;offers?:ListingOffer[];id:string;vin:string|null;title:string;make:string;model:string;trim:string;year:number|null;price:number;miles:number|null;state:string;city:string;source:string;url:string;photo:string|null;seller:'private'|'dealer'|'unknown';drive:string;titleStatus:string;condition:string;history:string;fees:number|null;checkedAt:string;sourceUpdatedAt:string|null;concerns:string[];comparables:{id:string;title:string;price:number;miles:number|null;url:string}[];median:number|null;reason:string;total:number};
 export type Source={name:string;status:'ready'|'unavailable'|'searched'|'error';detail:string;count?:number;total?:number;inspected?:number;hasMore?:boolean};
-export type Message={role:'user'|'assistant';text:string;ids?:string[];at:number};
+export type Message={role:'user'|'assistant';text:string;ids?:string[];target?:'compare';at:number};
 export function availableComparisonIds(rows:Listing[],ids:string[]){const available=new Set(rows.map(r=>r.id));return [...new Set(ids)].filter(id=>available.has(id));}
 export type SearchCursor={dealer:number|null;private:number|null;auction:number|null;autodev:string|null;autotrader?:number|null;retailers?:number|null};
 export const firstCursor=():SearchCursor=>({dealer:0,private:0,auction:0,autodev:'1',autotrader:0,retailers:0});

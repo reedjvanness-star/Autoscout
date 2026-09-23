@@ -1,3 +1,4 @@
+import {prepareChatComparison} from '@/lib/chat-comparison';
 import {workspaceCars,toggleComparison} from '@/lib/shortlist';
 import {alertSnapshot,saveAlert,checkAlert,emailReady} from '@/lib/alerts';
 import {alertSearchKey} from '@/lib/alert-matches';
@@ -16,9 +17,9 @@ export async function GET(req:Request){try{return Response.json(await snapshot(i
 export async function POST(req:Request){try{const id=identity(req),a=await boundedJson(req),w=await readWorkspace(id);const reply=(text:string,ids?:string[])=>w.messages.push({role:'assistant',text,ids,at:Date.now()});let search=false;
 if(a.action==='chat'){if(typeof a.text!=='string'||!a.text.trim()||a.text.length>2000)throw Error('Please use a message of 1–2,000 characters.');await limitUsage(id);const parsed=await interpret(a.text,w.filters,w.messages,await providerKey(id,'openai'));w.messages.push({role:'user',text:a.text,at:Date.now()});w.pending=null;
 if(parsed.question)reply(parsed.question);
-else if(parsed.action==='compare'){const selected=workspaceCars(w).filter((r,i,all)=>w.compare.includes(r.id)&&all.findIndex(x=>x.id===r.id)===i);const list=selected.length?selected:w.listings.slice(0,3);if(!list.length)reply('Search for cars first, then select Compare on the listings you want to evaluate.');else{const cheapest=[...list].filter(r=>!r.priceWarning).sort((a,b)=>a.total-b.total)[0];if(!cheapest)reply('These listings have unconfirmed prices. Check the full purchase amounts with the sellers before comparing value.');else reply(`${cheapest.title} has the lowest known subtotal at ${money(cheapest.total)} among these ${list.length} cars. This does not establish best overall value. Compare mileage, disclosed fees, and history below; unknown costs and condition can change the decision.`,list.map(r=>r.id))}}
+else if(parsed.action==='compare')w.messages.push({role:'assistant',...prepareChatComparison(w,a.text),at:Date.now()});
 else if(parsed.action==='save')reply('Use Save on a recommendation to keep it in Saved cars. I won’t guess which car you meant.');
-else if(parsed.action==='alert')reply('Tap “Notify me” beside your results to save your exact requirements and choose notifications. Manage them under Searches & alerts.');
+else if(parsed.action==='alert')reply('Tap “Notify me” beside your results to save your exact requirements and choose notifications. Manage them under Saved searches.');
 else{w.filters=parsed.filters;search=true;}}
 else if(a.action==='search'){await limitUsage(id);w.filters=filterSchema.parse(a.filters);w.pending=null;search=true;}
 else if(a.action==='nextBatch'){if(!w.nextCursor)throw Error('No further inventory pages are available.');if(a.searchId!==w.searchId)throw Error('Your search changed. Use the latest results.');if(a.cursor!==JSON.stringify(w.nextCursor))throw Error('These results have already advanced. Refresh to continue.');await limitUsage(id+':inventory-pages',5000);search=true;}
