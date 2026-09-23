@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {withMarketplaceAccess} from '../lib/marketplace-access';
+import type {Source} from '../lib/domain';
+const sources:Source[]=[{name:'Cars.com',status:'unavailable',detail:'No individual key'},{name:'AutoTrader',status:'unavailable',detail:'No dealer feed'},{name:'TrueCar',status:'error',detail:'Provider quota reached'}];
+const beta=withMarketplaceAccess(sources,{apify:true,apifyShared:true});
+assert.equal(beta.find(s=>s.name==='Cars.com')?.status,'ready');
+assert.equal(beta.find(s=>s.name==='CarGurus')?.status,'ready');
+assert.equal(beta.find(s=>s.name==='TrueCar')?.status,'error','never conceal a real failure');
+assert.equal(beta.find(s=>s.name==='AutoTrader')?.status,'unavailable');
+assert.ok(!beta.some(s=>s.name==='Facebook Marketplace'));
+assert.equal(withMarketplaceAccess(sources,{apify:false}),sources);
+console.log('PASS: shared marketplace status, preserved real errors and unavailable dealer feeds');

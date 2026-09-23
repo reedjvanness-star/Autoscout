@@ -1,3 +1,4 @@
+import {withMarketplaceAccess} from '@/lib/marketplace-access';
 import {prepareChatComparison} from '@/lib/chat-comparison';
 import {workspaceCars,toggleComparison} from '@/lib/shortlist';
 import {alertSnapshot,saveAlert,checkAlert,emailReady} from '@/lib/alerts';
@@ -11,7 +12,7 @@ import {sourceStatus,searchListings} from '@/lib/sources';
 import {interpret} from '@/lib/assistant';
 import {availableComparisonIds,relaxed,money,initialFilters} from '@/lib/domain';
 export const dynamic='force-dynamic';
-async function snapshot(id:string){const workspace=await readWorkspace(id);return {workspace,...await alertSnapshot(id),ai:!!await providerKey(id,'openai'),sources:sourceStatus(await inventoryKeys(id)),connections:await connectionStatus(id)}}
+async function snapshot(id:string){const workspace=await readWorkspace(id),connections=await connectionStatus(id);const sources=withMarketplaceAccess(sourceStatus(await inventoryKeys(id)),connections);workspace.sources=withMarketplaceAccess(workspace.sources.length?workspace.sources:sources,connections);return {workspace,...await alertSnapshot(id),ai:!!await providerKey(id,'openai'),sources,connections}}
 async function notifiedCar(userId:string,carId:string){const rows=await db().prepare('SELECT cars FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 50').bind(userId).all<{cars:string}>();return rows.results.flatMap(n=>JSON.parse(n.cars)).find((r:any)=>r.id===carId)}
 export async function GET(req:Request){try{return Response.json(await snapshot(identity(req)),{headers:{'Cache-Control':'no-store'}})}catch(e){return failure(e)}}
 export async function POST(req:Request){try{const id=identity(req),a=await boundedJson(req),w=await readWorkspace(id);const reply=(text:string,ids?:string[])=>w.messages.push({role:'assistant',text,ids,at:Date.now()});let search=false;
@@ -92,7 +93,7 @@ if(search){
   const keepLoaded=continuing||a.action==='chat'||a.action==='confirm';
   if(succeeded||!continuing){w.listings=mergeSearch(keepLoaded?w.listings:[],result.listings,w.filters);w.batch=continuing?(w.batch??1)+1:1;w.searchedAt=result.checkedAt;}
   w.sources=continuing?mergeSources(w.sources,result.sources):result.sources;w.nextCursor=result.nextCursor;
-  const message=access.apify&&!access.marketcheck&&!access.autodev?'Your requirements are ready. Checking the available marketplaces next; no dealer inventory feed is connected.':!succeeded?'Some inventory sources could not be checked. Your collected cars remain available. Open Sources for details.':`Found ${w.listings.length} matching cars across the inventory checked so far. ${healthyCursor(w.nextCursor,w.sources)?'More inventory pages are available.':'All currently accessible pages for this search have been checked.'} ${w.listings.length<5?'Fewer than five exact matches have been found so far; your requirements have not been relaxed. ':''}Your requested requirements are shown beside the results. Seller prices and equipment still need confirmation.`;
+  const message=access.apify&&!access.marketcheck&&!access.autodev?'Your requirements are ready. Searching the connected marketplaces next; results may take a few minutes.':!succeeded?'Some inventory sources could not be checked. Your collected cars remain available. Open Sources for details.':`Found ${w.listings.length} matching cars across the inventory checked so far. ${healthyCursor(w.nextCursor,w.sources)?'More inventory pages are available.':'All currently accessible pages for this search have been checked.'} ${w.listings.length<5?'Fewer than five exact matches have been found so far; your requirements have not been relaxed. ':''}Your requested requirements are shown beside the results. Seller prices and equipment still need confirmation.`;
   if(continuing&&w.messages.at(-1)?.role==='assistant')w.messages[w.messages.length-1]={role:'assistant',text:message,ids:w.listings.slice(0,12).map(r=>r.id),at:Date.now()};
   else reply(message,w.listings.slice(0,12).map(r=>r.id));
 }

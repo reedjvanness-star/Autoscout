@@ -1,6 +1,7 @@
 import {vehicles} from './vehicle-options';
 
 export const vehicleNameKey=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]/g,'');
+export const normalizeAudiText=(value:string)=>value.replace(/\b(RS|SQ|S|A|Q|R)[ -]+([1-8])\b/gi,(_,prefix,number)=>prefix.toUpperCase()+number).replace(/\bRS[ -]*Q[ -]*8\b/gi,'RS Q8');
 export const normalizeMercedesText=(value:string)=>value.replace(/\be\s*55\s*(?:a?mg)\b/gi,'E 55 AMG').replace(/\bamg\s*e\s*55\b/gi,'E 55 AMG').replace(/\be55\b/gi,'E 55 AMG');
 export function trimMatches(actual:string,requested:string){
  const words=(v:string)=>normalizeMercedesText(v).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();

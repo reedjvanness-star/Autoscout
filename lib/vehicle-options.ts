@@ -1,12 +1,13 @@
+import modelCatalog from './vehicle-models.json';
 // Common US used-car choices, not a claim of current inventory availability.
-export const vehicles:Record<string,Record<string,string[]>>={
+export const curatedVehicles:Record<string,Record<string,string[]>>={
  BMW:{'3 Series':['330i','330i xDrive','M340i','M340i xDrive'],'5 Series':['530i','530i xDrive','540i','540i xDrive','550i','550i xDrive','M550i xDrive'],'2 Series':['230i','M240i','M240i xDrive'],'4 Series':['430i','M440i'],'M3':['Base','Competition'],'M4':['Base','Competition'],'X3':['sDrive30i','xDrive30i','M40i'],'X5':['xDrive40i','M50i']},
  Subaru:{Crosstrek:['Base','Premium','Sport','Limited','Wilderness'],Outback:['Base','Premium','Onyx Edition','Limited','Touring','Wilderness'],Forester:['Base','Premium','Sport','Limited','Touring','Wilderness'],Impreza:['Base','Sport','RS'],WRX:['Base','Premium','Limited','GT'],BRZ:['Premium','Limited']},
  Toyota:{Camry:['LE','SE','XLE','XSE','TRD'],Corolla:['L','LE','SE','XLE','XSE'],RAV4:['LE','XLE','XLE Premium','Adventure','Limited','TRD Off-Road'],Tacoma:['SR','SR5','TRD Sport','TRD Off-Road','Limited','TRD Pro'],'4Runner':['SR5','SR5 Premium','TRD Off-Road','Limited','TRD Pro'],Tundra:['SR','SR5','Limited','Platinum','1794 Edition','TRD Pro'],Prius:['LE','XLE','Limited']},
  Honda:{Civic:['LX','Sport','EX','EX-L','Touring','Si','Type R'],Accord:['LX','Sport','EX','EX-L','Touring'],'CR-V':['LX','EX','EX-L','Touring'],'HR-V':['LX','Sport','EX-L'],Pilot:['LX','EX','EX-L','Touring','Elite'],Odyssey:['LX','EX','EX-L','Touring','Elite']},
  Ford:{'F-150':['XL','XLT','Lariat','King Ranch','Platinum','Limited','Raptor'],Mustang:['EcoBoost','EcoBoost Premium','GT','GT Premium','Mach 1','Dark Horse'],Bronco:['Base','Big Bend','Black Diamond','Outer Banks','Badlands','Wildtrak'],'Bronco Sport':['Base','Big Bend','Outer Banks','Badlands'],Explorer:['Base','XLT','Limited','ST','Platinum'],Escape:['S','SE','SEL','Titanium'],Ranger:['XL','XLT','Lariat']},
  Chevrolet:{'Silverado 1500':['WT','Custom','LT','RST','LTZ','High Country','ZR2'],Colorado:['WT','LT','Z71','ZR2'],Tahoe:['LS','LT','RST','Z71','Premier','High Country'],Equinox:['LS','LT','Premier'],Camaro:['1LT','2LT','3LT','LT1','1SS','2SS','ZL1'],Corvette:['Stingray','Grand Sport','Z06']},
- Audi:{A3:['Premium','Premium Plus','Prestige'],A4:['Premium','Premium Plus','Prestige'],A5:['Premium','Premium Plus','Prestige'],S3:['Premium','Premium Plus','Prestige'],S4:['Premium','Premium Plus','Prestige'],Q3:['Premium','Premium Plus'],Q5:['Premium','Premium Plus','Prestige'],Q7:['Premium','Premium Plus','Prestige']},
+ Audi:{A6:[],A7:[],A8:[],S5:[],S6:[],S7:[],S8:[],SQ5:[],SQ7:[],SQ8:[],RS3:[],RS4:[],RS5:[],RS6:[],RS7:[],'RS Q8':[],TT:[],TTS:[],'TT RS':[],R8:[],A3:['Premium','Premium Plus','Prestige'],A4:['Premium','Premium Plus','Prestige'],A5:['Premium','Premium Plus','Prestige'],S3:['Premium','Premium Plus','Prestige'],S4:['Premium','Premium Plus','Prestige'],Q3:['Premium','Premium Plus'],Q5:['Premium','Premium Plus','Prestige'],Q7:['Premium','Premium Plus','Prestige']},
  'Mercedes-Benz':{
   '190-Class':['190 E','190 D','190 E 2.3-16','190 E 2.6'],'300-Class':['300 D','300 E','300 CE','300 TE','300 SE','300 SEL','300 SD','300 SDL'],
   'A-Class':['A 220','A 220 4MATIC'],'B-Class':['B 250e','Electric Drive'],
@@ -50,5 +51,17 @@ export const vehicles:Record<string,Record<string,string[]>>={
  Porsche:{'911':['Carrera','Carrera S','Carrera 4S','Turbo','GT3'],Macan:['Base','S','GTS'],Cayenne:['Base','S','GTS','Turbo'],'718 Cayman':['Base','S','GTS','GT4']},
  Volvo:{S60:['Momentum','Inscription','R-Design'],XC40:['Momentum','Inscription','R-Design'],XC60:['Momentum','Inscription','R-Design'],XC90:['Momentum','Inscription','R-Design']},
 };
+// Merge the public model snapshot without replacing curated trim relationships.
+const nameKey=(value:string)=>value.toLowerCase().replace(/[^a-z0-9]/g,'');
+export const vehicles:Record<string,Record<string,string[]>>=Object.fromEntries(Object.entries(curatedVehicles).map(([make,models])=>[make,Object.fromEntries(Object.entries(models).map(([model,trims])=>[model,[...trims]]))]));
+for(const [catalogMake,models] of Object.entries(modelCatalog.models)){
+ const make=Object.keys(vehicles).find(value=>nameKey(value)===nameKey(catalogMake))??catalogMake;
+ const target=vehicles[make]??(vehicles[make]={});
+ for(const model of models){
+  if(Object.keys(target).some(value=>nameKey(value)===nameKey(model)))continue;
+  if(Object.values(curatedVehicles[make]??{}).some(trims=>trims.some(trim=>nameKey(trim)===nameKey(model))))continue;
+  target[model]=[];
+ }
+}
 export const states:[string,string][]=[['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['DC','District of Columbia'],['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming']];
 export function options(values:string[],current:string,anyLabel:string):[string,string][]{return [['__any',anyLabel],...Array.from(new Set([...values,...(current?[current]:[])])).map(v=>[v,v] as [string,string])]}
