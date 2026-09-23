@@ -1,5 +1,5 @@
 // Only the explicitly configured marketplace sponsor can fund the free beta.
-// AI and dealer inventory credentials never fall back to another account.
+// AI sponsorship is separately enabled; dealer credentials are never inherited.
 export type ConnectionProvider='marketcheck'|'openai'|'autodev'|'apify';
 export async function resolveProviderCredential(userId:string,provider:ConnectionProvider,env:Record<string,unknown>,readStored:(id:string,provider:ConnectionProvider)=>Promise<string|undefined>){
  const own=await readStored(userId,provider);if(own)return own;
@@ -7,6 +7,8 @@ export async function resolveProviderCredential(userId:string,provider:Connectio
  const global=env[name];if(typeof global==='string'&&global)return global;
  const sponsor=env.SHARED_FREE_APIFY_OWNER_ID;
  if(provider==='apify'&&typeof sponsor==='string'&&sponsor&&sponsor!==userId)return readStored(sponsor,'apify');
+ const aiSponsor=env.SHARED_OPENAI_OWNER_ID;
+ if(provider==='openai'&&typeof aiSponsor==='string'&&aiSponsor&&aiSponsor!==userId)return readStored(aiSponsor,'openai');
 }
 export async function reserveBetaSearch(database:{prepare:(sql:string)=>any},userId:string,now=Date.now()){
  const day=new Date(now).toISOString().slice(0,10);
