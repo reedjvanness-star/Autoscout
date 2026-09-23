@@ -77,6 +77,8 @@ else if(a.action==='deleteAlert'){
 else if(a.action==='loadSearch'){const row=await db().prepare('SELECT filters FROM alerts WHERE id=? AND user_id=?').bind(String(a.id),id).first<{filters:string}>();if(!row)throw Error('Saved search not found.');w.filters=filterSchema.parse(JSON.parse(row.filters));w.listings=[];w.searchedAt=null;w.pending=null;w.nextCursor=null;w.searchId=crypto.randomUUID();w.batch=0;w.sources=[];reply('Saved filters loaded. Press Search to check current listings.');}
 else throw Error('Unknown action.');
 if(search){
+  const access=await connectionStatus(id);
+  if(!access.marketcheck&&!access.autodev&&!access.apify)throw Error('Live inventory is not connected for this account yet. This is an access issue, not a lack of matching cars. Your previous search and saved cars are unchanged.');
   const continuing=a.action==='nextBatch';
   const cursor=continuing?(a.automatic?healthyCursor(w.nextCursor,w.sources):w.nextCursor):undefined;
   if(continuing&&!cursor)throw Error('Remaining sources are unavailable. Your collected cars are still here.');
