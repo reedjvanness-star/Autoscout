@@ -10,6 +10,6 @@ export async function resolveProviderCredential(userId:string,provider:Connectio
 }
 export async function reserveBetaSearch(database:{prepare:(sql:string)=>any},userId:string,now=Date.now()){
  const day=new Date(now).toISOString().slice(0,10);
- const row=await database.prepare('INSERT INTO usage(user_id,day,count) VALUES(?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < 2 RETURNING count').bind(userId+':shared-marketplace',day).first();
- if(!row)throw Error('Your two free beta search attempts for today are used. Your collected cars are still available. Try again tomorrow.');
+ const row=await database.prepare('INSERT INTO usage(user_id,day,count) VALUES(?,?,1) ON CONFLICT(user_id,day) DO UPDATE SET count=count+1 WHERE count < 50 RETURNING count').bind(userId+':shared-marketplace',day).first();
+ if(!row)throw Error('Your 50 free beta search attempts for today are used. Your collected cars are still available. Try again tomorrow.');
 }
